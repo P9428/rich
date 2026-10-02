@@ -21,8 +21,8 @@ def _iso_to_epoch(s):
 
 
 class TruthSocial:
-    """Public Mastodon-style API, no key. One id lookup per account, then statuses every POLL seconds."""
-    POLL = 5
+    """Public Mastodon-style API, no key. One id lookup per account, then statuses every POLL seconds (5 s draws 429s)."""
+    POLL = 12
 
     def __init__(self, accounts, state):
         self.accounts, self.state = accounts, state
