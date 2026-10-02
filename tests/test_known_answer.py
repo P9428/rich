@@ -32,6 +32,12 @@ def test_paper_exits(case):
     assert round(100 * pos.net_sol() / P.SIZE_SOL, 2) == case["expect_net_pct"]
 
 
+def test_stream_rule_covers_roster():
+    import feeds as F
+    rule = F.XStream.rule_for(["blknoiz06", "finkd"])
+    assert rule == "from:blknoiz06 OR from:finkd" and len(rule) <= 512
+
+
 def test_lone_capitalised_word_is_not_a_phrase():
     out = R.phrases("Why would the State of New York do this? Buy ANSEM.", set())
     names = [p for k, p in out if k == "name"]

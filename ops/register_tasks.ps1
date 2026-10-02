@@ -9,4 +9,6 @@ $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -Execution
 $guardTriggers = @((New-ScheduledTaskTrigger -AtLogOn), (New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)))
 Register-ScheduledTask -TaskName "rich - SENSOR GUARD" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $guardArgs) -Trigger $guardTriggers -Settings $settings -Force | Out-Null
 Register-ScheduledTask -TaskName "rich - READOUT" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $readArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 05:30) -Settings $settings -Force | Out-Null
+$discArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"$root\ops\discover.ps1`""
+Register-ScheduledTask -TaskName "rich - DISCOVER" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $discArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 05:00) -Settings $settings -Force | Out-Null
 Get-ScheduledTask -TaskName "rich - *" | ForEach-Object { "{0,-22} {1}" -f $_.TaskName, $_.State }

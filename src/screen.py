@@ -1,4 +1,5 @@
-"""The breadth screen: pure gate logic on a snapshot, plus the snapshot builder that fills it from live data."""
+"""The breadth screen. gate() is pure; snapshot() is built from the DexScreener pair record the resolver already holds,
+and the one slow check (the pump.fun create deposit, two RPC calls) runs only when the cheap gates have passed."""
 import time
 
 import common as C
@@ -7,7 +8,7 @@ PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
 
 
 def gate(snap):
-    """snap: liq, age_min, buys_h1, sells_h1, mc, dev_create_sol (None = unknown). Returns (passed, reasons)."""
+    """snap: liq, age_min, buys_h1, sells_h1, mc, dev_create_sol (None = unknown or not yet checked). Returns (passed, reasons)."""
     r = []
     if snap["liq"] < C.LIQ_FLOOR:
         r.append(f"liq {snap['liq']:.0f} < {C.LIQ_FLOOR}")
@@ -25,7 +26,7 @@ def gate(snap):
 
 
 def dev_create_sol(mint):
-    """SOL the creator deposited in the pump.fun create tx, or None when the curve history is too long to read cheaply."""
+    """SOL the creator deposited in the pump.fun create tx; None for non-pump mints or curves too long to read cheaply."""
     if not mint.endswith("pump"):
         return None
     from solders.pubkey import Pubkey
@@ -33,8 +34,7 @@ def dev_create_sol(mint):
     sigs = C.rpc("getSignaturesForAddress", [str(curve), {"limit": 1000}])
     if not sigs or len(sigs) >= 1000:
         return None
-    first = sigs[-1]["signature"]
-    tx = C.rpc("getTransaction", [first, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 1}])
+    tx = C.rpc("getTransaction", [sigs[-1]["signature"], {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 1}])
     if not tx:
         return None
     keys = [k["pubkey"] for k in tx["transaction"]["message"]["accountKeys"]]
@@ -45,9 +45,7 @@ def dev_create_sol(mint):
 
 
 def snapshot(pair):
-    """Build the gate input from a DexScreener pair record (plus the curve check for pump mints)."""
-    tx = pair.get("txns") or {}
-    h1 = tx.get("h1") or {}
+    h1 = (pair.get("txns") or {}).get("h1") or {}
     created = (pair.get("pairCreatedAt") or 0) / 1000
     return {
         "liq": (pair.get("liquidity") or {}).get("usd") or 0.0,
@@ -56,5 +54,15 @@ def snapshot(pair):
         "sells_h1": h1.get("sells") or 0,
         "mc": pair.get("marketCap") or pair.get("fdv") or 0,
         "price": float(pair.get("priceUsd") or 0),
-        "dev_create_sol": dev_create_sol(pair["baseToken"]["address"]),
+        "dev_create_sol": None,
     }
+
+
+def screen(pair):
+    """Cheap gates first; the RPC check only when they pass. Returns (passed, reasons, snap)."""
+    snap = snapshot(pair)
+    ok, why = gate(snap)
+    if ok:
+        snap["dev_create_sol"] = dev_create_sol(pair["baseToken"]["address"])
+        ok, why = gate(snap)
+    return ok, why, snap

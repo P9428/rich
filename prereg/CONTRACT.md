@@ -67,6 +67,16 @@ State…") matched a token named "State"; single-word phrases now count only whe
 `$ticker`. (b) The ANSEM fee wallet's routine fee claims (4 tokens) fired as receipts; a receipt is a touch only at
 ≥ 0.1 % of supply, and ≥ 1 % remains a gift. Both events are in `journal/events.jsonl`, screen-rejected, uncounted.
 
+## Amendment 2 (2026-10-02): feeds go push, and the roster grows itself
+
+- X posts arrive by filtered stream (one `from:` rule over the roster), not a 60 s poll. Truth Social polls every 5 s.
+  Wallet decodes start 0.5 s after the notification. Every event records source-to-seen, resolve and decision latency.
+- `ops/discover.py` runs daily. Sources: @mentions in the recap accounts' posts (X recent search) and X handles that
+  DexScreener token profiles link to on ≥ 3 different tokens. A handle is auto-added when the X account has
+  ≥ 500,000 followers, is ≥ 1 year old, and its name/bio does not read as a token account; otherwise it is parked in
+  `prereg/CANDIDATES.json` for the operator. Roster size is capped at 28 handles (one 512-character stream rule).
+  Additions widen coverage only; no gate changes. Every change is logged in `journal/roster.jsonl`.
+
 ## Known answer
 
 `tests/test_known_answer.py` pins the resolver and gates on fixtures from the September ledger

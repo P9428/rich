@@ -1,8 +1,10 @@
-"""The sensor: feeds -> resolver -> breadth screen -> paper book -> alerts. Runs 24/7; heartbeat every loop."""
+"""The sensor: feeds -> resolver -> breadth screen -> paper book -> alerts. Every event carries stage timestamps so latency is a number."""
 import asyncio
+import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C          # noqa: E402
@@ -18,14 +20,13 @@ STATE = C.path("state", "feeds.json")
 BOOK = C.path("state", "positions.json")
 HEART = C.path("monitor", "heartbeat.json")
 MARK_EVERY = 30
+HANDLERS = ThreadPoolExecutor(max_workers=4)
 
 
 def alert(line):
     C.append(ALERTS, {"alert": line})
     tok, chat = os.environ.get("TG_BOT_TOKEN"), os.environ.get("TG_CHAT_ID")
     if tok and chat:
-        import json
-        import urllib.parse
         try:
             C.http_json(f"https://api.telegram.org/bot{tok}/sendMessage",
                         json.dumps({"chat_id": chat, "text": line, "disable_web_page_preview": True}).encode(), tries=2, timeout=10)
@@ -37,32 +38,37 @@ class Sensor:
     def __init__(self):
         r = C.roster()
         self.state = C.load_json(STATE, {})
-        self.polls = [F.TruthSocial(r["truth"], self.state), F.DexProfiles(r["x"], self.state), F.XApi(r["x"], self.state)]
         self.queue = asyncio.Queue()
-        self.wallet = F.WalletTouch(r["wallets"], self.queue)
+        self.polls = [F.TruthSocial(r["truth"], self.state), F.DexProfiles(r["x"], self.state)]
+        self.pushes = [F.WalletTouch(r["wallets"], self.queue), F.XStream(r["x"], self.queue)]
         self.ignore = r.get("ignore_terms", [])
         self.book = P.Book(BOOK, JOURNAL)
         self.seen = set(e["id"] for e in C.read_jsonl(EVENTS))
+        self.lock = asyncio.Lock()
         self.last_mark = 0.0
 
     async def run(self):
-        asyncio.create_task(self.wallet.run())
+        for p in self.pushes:
+            asyncio.create_task(p.run())
         for f in self.polls:
             asyncio.create_task(self._poll(f))
+        loop = asyncio.get_event_loop()
         while True:
             try:
-                ev = await asyncio.wait_for(self.queue.get(), timeout=5)
-                await asyncio.get_event_loop().run_in_executor(None, self.handle, ev)
+                ev = await asyncio.wait_for(self.queue.get(), timeout=2)
+                ev["t_seen"] = time.time()
+                loop.run_in_executor(HANDLERS, self.handle, ev)
             except asyncio.TimeoutError:
                 pass
             if time.time() - self.last_mark >= MARK_EVERY:
-                await asyncio.get_event_loop().run_in_executor(None, self.mark)
+                loop.run_in_executor(HANDLERS, self.mark)
             C.save_json(HEART, {"pid": os.getpid(), "ts": C.iso(), "open": len(self.book.open), "events": len(self.seen)})
 
     async def _poll(self, feed):
+        loop = asyncio.get_event_loop()
         while True:
             try:
-                for ev in await asyncio.get_event_loop().run_in_executor(None, feed.poll):
+                for ev in await loop.run_in_executor(None, feed.poll):
                     await self.queue.put(ev)
                 C.save_json(STATE, self.state)
             except Exception as e:
@@ -73,30 +79,35 @@ class Sensor:
         if ev["id"] in self.seen:
             return
         self.seen.add(ev["id"])
-        t = time.time()
+        t = ev["t_seen"]
         if ev.get("mint"):
-            pairs = [p for p in C.dex_tokens([ev["mint"]]) if p.get("chainId") == "solana"]
-            best = C.best_pair(pairs)
-            accepted = [{"mint": ev["mint"], "symbol": best["baseToken"]["symbol"], "name": best["baseToken"]["name"], "phrase": ev["kind"], "pair": best["pairAddress"]}] if best else []
+            best = C.best_pair([p for p in C.dex_tokens([ev["mint"]]) if p.get("chainId") == "solana"])
+            accepted = [{"mint": ev["mint"], "symbol": best["baseToken"]["symbol"], "name": best["baseToken"]["name"],
+                         "phrase": ev["kind"], "pair": best["pairAddress"], "_pair": best}] if best else []
             near = []
         else:
             accepted, near = R.resolve(ev["text"], t, self.ignore)
-        rec = {**ev, "accepted": accepted, "near": near, "seen_at": C.iso(t)}
+        t_resolved = time.time()
         results = []
         for a in accepted:
-            pair = C.best_pair([p for p in C.dex_tokens([a["mint"]]) if p.get("chainId") == "solana"])
+            pair = a.pop("_pair", None) or C.best_pair([p for p in C.dex_tokens([a["mint"]]) if p.get("chainId") == "solana"])
             if not pair:
                 continue
-            snap = S.snapshot(pair)
-            ok, why = S.gate(snap)
-            results.append({"mint": a["mint"], "symbol": a["symbol"], "pass": ok, "why": why, "snap": snap})
+            ok, why, snap = S.screen(pair)
+            res = {"mint": a["mint"], "symbol": a["symbol"], "pass": ok, "why": why, "snap": snap, "t_screened": time.time()}
             if ok and snap["price"] > 0:
-                pos = self.book.enter(a["mint"], a["symbol"], snap["price"], t, ev["id"])
+                pos = self.book.enter(a["mint"], a["symbol"], snap["price"], time.time(), ev["id"])
+                res["entry"] = bool(pos)
+                res["t_entry"] = time.time()
                 alert(f"{ev['person']} {ev['kind']} -> {a['symbol']} {a['mint']} PASS liq=${snap['liq']:,.0f} buys_h1={snap['buys_h1']} "
-                      f"{'PAPER ENTRY @'+str(snap['price']) if pos else 'no entry (book full or duplicate)'}")
+                      f"{'PAPER ENTRY @'+str(snap['price']) if pos else 'no entry (book full or duplicate)'} "
+                      f"latency {time.time()-ev['t_src']:.1f}s from source")
             else:
                 alert(f"{ev['person']} {ev['kind']} -> {a['symbol']} {a['mint']} FAIL {'; '.join(why) or 'no price'}")
-        rec["screen"] = results
+            results.append(res)
+        rec = {**ev, "accepted": accepted, "near": near, "screen": results,
+               "latency": {"source_to_seen": round(t - ev["t_src"], 2), "resolve": round(t_resolved - t, 2),
+                           "to_decision": round(time.time() - t, 2)}}
         C.append(EVENTS, rec)
         if not accepted:
             C.append(ALERTS, {"touch_unresolved": f"{ev['feed']} {ev['person']} {ev['kind']}: {ev['text'][:140]}", "near": near[:3]})
@@ -105,11 +116,9 @@ class Sensor:
         self.last_mark = time.time()
         if not self.book.open:
             return
-        pairs = C.dex_tokens([p.mint for p in self.book.open])
         prices = {}
-        for p in pairs:
-            m = p["baseToken"]["address"]
-            liq = (p.get("liquidity") or {}).get("usd") or 0
+        for p in C.dex_tokens([p.mint for p in self.book.open]):
+            m, liq = p["baseToken"]["address"], (p.get("liquidity") or {}).get("usd") or 0
             if liq >= prices.get(m, (0, 0))[1]:
                 prices[m] = (float(p.get("priceUsd") or 0), liq)
         before = {p.mint for p in self.book.open}

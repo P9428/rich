@@ -1,53 +1,56 @@
-"""The touch feeds. Each yields event dicts: {id, feed, person, kind, text, mint?, when}. State is per-feed and durable."""
+"""The touch feeds. Each produces event dicts {id, feed, person, kind, text, mint?, when, t_src}: t_src is the source's own
+timestamp (epoch seconds) so end-to-end latency is measurable. Polling feeds expose poll() and POLL; push feeds expose run()."""
 import asyncio
 import json
 import os
 import re
 import time
+import urllib.request
 
 import websockets
 
 import common as C
 
 TAG_RE = re.compile(r"<[^>]+>")
-MIN_RECEIVE_SHARE = 0.001  # a receipt counts as a touch only at >= 0.1 % of supply; >= 1 % is a gift
+MIN_RECEIVE_SHARE = 0.001   # a receipt counts as a touch only at >= 0.1 % of supply; >= 1 % is a gift
+GIFT_SHARE = 0.01
+
+
+def _iso_to_epoch(s):
+    return time.mktime(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
 
 
 class TruthSocial:
-    """Public Mastodon-style API; no key. One lookup per account, then statuses every POLL seconds."""
-    POLL = 20
+    """Public Mastodon-style API, no key. One id lookup per account, then statuses every POLL seconds."""
+    POLL = 5
 
     def __init__(self, accounts, state):
         self.accounts, self.state = accounts, state
         self.ids = {}
 
-    def _lookup(self, acct):
-        if acct not in self.ids:
-            self.ids[acct] = C.http_json(f"https://truthsocial.com/api/v1/accounts/lookup?acct={acct}")["id"]
-        return self.ids[acct]
-
     def poll(self):
         out = []
         for a in self.accounts:
-            uid = self._lookup(a["acct"])
-            last = self.state.get("truth:" + a["acct"])
-            sts = C.http_json(f"https://truthsocial.com/api/v1/accounts/{uid}/statuses?limit=10&exclude_replies=false")
-            newest = None
-            for s in sorted(sts, key=lambda s: s["id"]):
-                if last is None or s["id"] > last:
+            key = "truth:" + a["acct"]
+            if a["acct"] not in self.ids:
+                self.ids[a["acct"]] = C.http_json(f"https://truthsocial.com/api/v1/accounts/lookup?acct={a['acct']}")["id"]
+            last = self.state.get(key)
+            for s in sorted(C.http_json(f"https://truthsocial.com/api/v1/accounts/{self.ids[a['acct']]}/statuses?limit=10&exclude_replies=false"), key=lambda s: s["id"]):
+                if last is not None and s["id"] > last:
                     text = TAG_RE.sub(" ", s.get("content") or "").strip()
-                    if last is not None and text:
+                    if text:
                         out.append({"id": "truth:" + s["id"], "feed": "truth", "person": a["person"], "kind": "post",
-                                    "text": text, "when": s["created_at"]})
-                    newest = s["id"]
-            if newest:
-                self.state["truth:" + a["acct"]] = newest
+                                    "text": text, "when": s["created_at"], "t_src": _iso_to_epoch(s["created_at"])})
+                if last is None or s["id"] > self.state.get(key, ""):
+                    self.state[key] = s["id"]
         return out
 
 
 class DexProfiles:
     """DexScreener latest profiles and boosts whose social link belongs to a roster handle."""
     POLL = 30
+    URLS = (("https://api.dexscreener.com/token-profiles/latest/v1", "profile"), ("https://api.dexscreener.com/token-boosts/latest/v1", "boost"))
+    LINK_RE = re.compile(r"(?:x|twitter)\.com/([A-Za-z0-9_]+)")
 
     def __init__(self, handles, state):
         self.handles = {h["handle"].lower(): h["person"] for h in handles}
@@ -56,70 +59,104 @@ class DexProfiles:
 
     def poll(self):
         out = []
-        for url, kind in (("https://api.dexscreener.com/token-profiles/latest/v1", "profile"),
-                          ("https://api.dexscreener.com/token-boosts/latest/v1", "boost")):
+        for url, kind in self.URLS:
             for p in C.http_json(url):
                 if p.get("chainId") != "solana":
                     continue
                 for l in p.get("links") or []:
-                    m = re.search(r"(?:x|twitter)\.com/([A-Za-z0-9_]+)", l.get("url") or "")
+                    m = self.LINK_RE.search(l.get("url") or "")
                     h = m.group(1).lower() if m else None
                     key = f"{kind}:{p['tokenAddress']}:{h}"
                     if h in self.handles and key not in self.seen:
                         self.seen.add(key)
                         out.append({"id": "dex:" + key, "feed": "profile", "person": self.handles[h], "kind": kind,
-                                    "text": l["url"], "mint": p["tokenAddress"], "when": C.iso()})
+                                    "text": l["url"], "mint": p["tokenAddress"], "when": C.iso(), "t_src": time.time()})
         self.state["profiles_seen"] = sorted(self.seen)[-5000:]
         return out
 
 
-class XApi:
-    """Official v2 user timelines. Dormant without X_BEARER; the gap is logged once."""
-    POLL = 60
+class XStream:
+    """X API v2 filtered stream: one rule covering the roster, posts pushed as they happen. Dormant without X_BEARER."""
+    RULES = "https://api.x.com/2/tweets/search/stream/rules"
+    STREAM = "https://api.x.com/2/tweets/search/stream?tweet.fields=created_at,author_id&expansions=author_id&user.fields=username"
 
-    def __init__(self, handles, state):
-        self.handles, self.state = handles, state
+    ROSTER_FILE = os.path.join(C.ROOT, "prereg", "ROSTER.json")
+
+    def __init__(self, handles, queue):
+        self.people = {h["handle"].lower(): h["person"] for h in handles}
+        self.queue = queue
         self.bearer = os.environ.get("X_BEARER")
-        self.ids = {}
+        self.roster_mtime = os.path.getmtime(self.ROSTER_FILE)
+        self.resp = None
 
-    def _get(self, url):
-        import urllib.request
-        req = urllib.request.Request(url, headers={"Authorization": "Bearer " + self.bearer, "User-Agent": "rich/1"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
+    def _reload_roster(self):
+        self.people = {h["handle"].lower(): h["person"] for h in C.roster()["x"]}
+        self.roster_mtime = os.path.getmtime(self.ROSTER_FILE)
 
-    def poll(self):
+    async def _watch_roster(self):
+        """Discovery rewrites ROSTER.json; a changed file re-applies the rule by dropping the stream, which reconnects."""
+        while True:
+            await asyncio.sleep(60)
+            if os.path.getmtime(self.ROSTER_FILE) != self.roster_mtime and self.resp is not None:
+                self._reload_roster()
+                self.resp.close()
+
+    def _req(self, url, data=None, method=None):
+        req = urllib.request.Request(url, data=data, method=method,
+                                     headers={"Authorization": "Bearer " + self.bearer, "User-Agent": "rich/1", "Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=None if url.startswith(self.STREAM[:40]) and data is None and method is None else 30)
+
+    @staticmethod
+    def rule_for(handles):
+        return " OR ".join("from:" + h for h in handles)
+
+    def ensure_rules(self):
+        want = self.rule_for(sorted(self.people))
+        have = json.load(self._req(self.RULES)).get("data") or []
+        if any(r["value"] == want for r in have) and len(have) == 1:
+            return
+        if have:
+            self._req(self.RULES, json.dumps({"delete": {"ids": [r["id"] for r in have]}}).encode())
+        res = json.load(self._req(self.RULES, json.dumps({"add": [{"value": want, "tag": "roster"}]}).encode()))
+        if res.get("errors"):
+            raise RuntimeError(res["errors"])
+
+    async def run(self):
         if not self.bearer:
-            return []
-        out = []
-        for h in self.handles:
-            if h["handle"] not in self.ids:
-                u = self._get(f"https://api.x.com/2/users/by/username/{h['handle']}")
-                if "data" not in u:
-                    C.append(C.path("monitor", "feed-errors.log"), {"feed": "XApi", "handle": h["handle"], "err": json.dumps(u.get("errors"))[:200]})
-                    self.ids[h["handle"]] = None
-                    continue
-                self.ids[h["handle"]] = u["data"]["id"]
-            if self.ids[h["handle"]] is None:
-                continue
-            since = self.state.get("x:" + h["handle"])
-            q = f"https://api.x.com/2/users/{self.ids[h['handle']]}/tweets?max_results=10&tweet.fields=created_at"
-            if since:
-                q += "&since_id=" + since
-            data = self._get(q).get("data") or []
-            for t in sorted(data, key=lambda t: t["id"]):
-                if since is not None:
-                    out.append({"id": "x:" + t["id"], "feed": "x", "person": h["person"], "kind": "post", "text": t["text"], "when": t["created_at"]})
-                self.state["x:" + h["handle"]] = t["id"]
-            if since is None and data:
-                self.state["x:" + h["handle"]] = max(t["id"] for t in data)
-        return out
+            C.append(C.path("monitor", "feed-errors.log"), {"feed": "x", "err": "dormant: no X_BEARER"})
+            return
+        loop = asyncio.get_event_loop()
+        asyncio.create_task(self._watch_roster())
+        backoff = 1
+        while True:
+            try:
+                await loop.run_in_executor(None, self.ensure_rules)
+                self.resp = await loop.run_in_executor(None, self._req, self.STREAM)
+                C.append(C.path("monitor", "alerts.log"), {"x_stream": "connected", "handles": len(self.people)})
+                backoff = 1
+                while True:
+                    line = await loop.run_in_executor(None, self.resp.readline)
+                    if not line:
+                        raise ConnectionError("stream closed")
+                    if line.strip():
+                        await self.queue.put(self._event(json.loads(line)))
+            except Exception as e:
+                C.append(C.path("monitor", "feed-errors.log"), {"feed": "x", "err": str(e)[:200]})
+                await asyncio.sleep(backoff)
+                backoff = min(60, backoff * 2)
+
+    def _event(self, msg):
+        d = msg["data"]
+        users = {u["id"]: u["username"].lower() for u in (msg.get("includes") or {}).get("users", [])}
+        handle = users.get(d.get("author_id"), "")
+        return {"id": "x:" + d["id"], "feed": "x", "person": self.people.get(handle, handle), "kind": "post", "text": d["text"],
+                "when": d.get("created_at", C.iso()), "t_src": _iso_to_epoch(d["created_at"]) if d.get("created_at") else time.time()}
 
 
 class WalletTouch:
-    """logsSubscribe on each roster wallet; a notification is decoded into token receipts/buys. Runs in its own task."""
-
-    DECODE_SPACING = 1.5  # one getTransaction per 1.5 s: the public RPC 429s past that
+    """logsSubscribe on each roster wallet; a notification is decoded into token buys, receipts and gifts."""
+    DECODE_SPACING = 1.0     # the public RPC 429s past one getTransaction a second
+    FIRST_WAIT = 0.5         # confirmed txs are usually readable this soon; retried if the node has not seen it yet
 
     def __init__(self, wallets, queue):
         self.wallets = {w["address"]: w for w in wallets}
@@ -141,27 +178,33 @@ class WalletTouch:
                         m = json.loads(raw)
                         if "result" in m and m.get("id") in subs:
                             bysub[m["result"]] = subs[m["id"]]
-                            continue
-                        if m.get("method") != "logsNotification":
-                            continue
-                        v = m["params"]["result"]["value"]
-                        addr = bysub.get(m["params"]["subscription"])
-                        if addr and not v.get("err"):
-                            asyncio.create_task(self._decode(addr, v["signature"]))
+                        elif m.get("method") == "logsNotification":
+                            v = m["params"]["result"]["value"]
+                            addr = bysub.get(m["params"]["subscription"])
+                            if addr and not v.get("err"):
+                                asyncio.create_task(self._decode(addr, v["signature"], time.time()))
             except Exception as e:
                 C.append(C.path("monitor", "feed-errors.log"), {"feed": "wallet", "err": str(e)[:200]})
                 await asyncio.sleep(5)
 
-    async def _decode(self, addr, sig):
-        await asyncio.sleep(2)  # let the tx reach confirmed on the RPC node
-        async with self.lock:
-            wait = self.last_decode + self.DECODE_SPACING - time.time()
-            if wait > 0:
-                await asyncio.sleep(wait)
-            self.last_decode = time.time()
+    async def _fetch(self, sig):
+        loop = asyncio.get_event_loop()
+        for attempt in range(4):
+            await asyncio.sleep(self.FIRST_WAIT if attempt == 0 else 1.0)
+            async with self.lock:
+                wait = self.last_decode + self.DECODE_SPACING - time.time()
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                self.last_decode = time.time()
+            tx = await loop.run_in_executor(None, C.rpc, "getTransaction",
+                                            [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 1, "commitment": "confirmed"}])
+            if tx:
+                return tx
+        return None
+
+    async def _decode(self, addr, sig, t_seen):
         try:
-            tx = await asyncio.get_event_loop().run_in_executor(None, C.rpc, "getTransaction",
-                                                               [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 1, "commitment": "confirmed"}])
+            tx = await self._fetch(sig)
         except Exception as e:
             C.append(C.path("monitor", "feed-errors.log"), {"feed": "wallet", "sig": sig, "err": str(e)[:200]})
             return
@@ -173,22 +216,19 @@ class WalletTouch:
             for tb in side:
                 if tb.get("owner") == addr:
                     delta[tb["mint"]] = delta.get(tb["mint"], 0.0) + sign * float(tb["uiTokenAmount"]["uiAmount"] or 0)
-        keys = [k["pubkey"] for k in tx["transaction"]["message"]["accountKeys"]]
-        signer = keys[0]
+        signer = tx["transaction"]["message"]["accountKeys"][0]["pubkey"]
         for mint, d in delta.items():
             if d <= 0 or mint.startswith("So1111"):
                 continue
             kind = "buy" if signer == addr else "receive"
             share = None
-            try:
+            if kind == "receive":
                 sup = C.rpc("getTokenSupply", [mint])["value"]
                 share = d / float(sup["uiAmount"]) if sup.get("uiAmount") else None
-            except Exception:
-                pass
-            if kind == "receive" and share is not None and share >= 0.01:
-                kind = "gift"
-            elif kind == "receive" and (share is None or share < MIN_RECEIVE_SHARE):
-                continue  # AMENDMENT 1: fee claims and dust are not a touch
+                if share is None or share < MIN_RECEIVE_SHARE:
+                    continue
+                if share >= GIFT_SHARE:
+                    kind = "gift"
             await self.queue.put({"id": f"wallet:{sig}:{mint}", "feed": "wallet", "person": w["person"], "kind": kind,
-                                 "text": f"{w['label']} {kind} {d:,.0f} of {mint}" + (f" ({share:.1%} of supply)" if share else ""),
-                                 "mint": mint, "when": C.iso(tx.get("blockTime") or time.time()), "signer": signer})
+                                 "text": f"{w['label']} {kind} {d:,.0f} of {mint}" + (f" ({share:.2%} of supply)" if share else ""),
+                                 "mint": mint, "when": C.iso(tx.get("blockTime") or t_seen), "t_src": tx.get("blockTime") or t_seen, "signer": signer})

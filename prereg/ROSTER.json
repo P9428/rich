@@ -5,14 +5,22 @@
   "x": [
     {"handle": "blknoiz06", "person": "Ansem"},
     {"handle": "elonmusk", "person": "Elon Musk"},
-    {"handle": "zuck", "person": "Mark Zuckerberg"},
+    {"handle": "finkd", "person": "Mark Zuckerberg"},
     {"handle": "vladtenev", "person": "Vlad Tenev"},
     {"handle": "TheRoaringKitty", "person": "Keith Gill"},
     {"handle": "Raydium", "person": "Raydium (protocol account)"},
     {"handle": "LaunchOnSF", "person": "stonk.fun (platform account)"},
     {"handle": "solana", "person": "Solana (foundation account)"},
-    {"handle": "jito", "person": "Jito (protocol account)"}
+    {"handle": "jito", "person": "Jito (protocol account)"},
+    {"handle": "pumpdotfun", "person": "pump.fun (platform account)"},
+    {"handle": "jackdoherty", "person": "Jack Doherty"},
+    {"handle": "BasedBeffJezos", "person": "Beff Jezos"},
+    {"handle": "LucaNetz", "person": "Luca Netz"},
+    {"handle": "0xn4te", "person": "Nate (0xn4te)"},
+    {"handle": "MustStopMurad", "person": "Murad"}
   ],
+  "recap_accounts": ["CryptoGorilla", "whalewatchalert", "AlphxInsights"],
+  "x_rejected": [],
   "wallets": [
     {"address": "7oU9nR9VEvFPwvp2PpXo2LQc6A92QRhcUTwhLWT7MsDM", "label": "Ansem Bitgo Custodial", "person": "Ansem"},
     {"address": "GV6UUmNxz2RpKxmNAPadYKb7uQpszwqQAu3qLJxVdC52", "label": "ansemconzimp pump.fun fee wallet", "person": "ANSEM deployer"}
