@@ -60,6 +60,13 @@ and never traded. From a wallet event the mint is known.
 
 Give-up date 2026-12-31 if S1 is not reached. No capital is proposed before S1.
 
+## Amendment 1 (2026-10-02, before the first counted trade)
+
+The first three live events showed two noise sources. (a) A lone capitalised word inside a sentence ("Why would the
+State…") matched a token named "State"; single-word phrases now count only when written in capitals or as a
+`$ticker`. (b) The ANSEM fee wallet's routine fee claims (4 tokens) fired as receipts; a receipt is a touch only at
+≥ 0.1 % of supply, and ≥ 1 % remains a gift. Both events are in `journal/events.jsonl`, screen-rejected, uncounted.
+
 ## Known answer
 
 `tests/test_known_answer.py` pins the resolver and gates on fixtures from the September ledger

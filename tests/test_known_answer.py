@@ -32,6 +32,13 @@ def test_paper_exits(case):
     assert round(100 * pos.net_sol() / P.SIZE_SOL, 2) == case["expect_net_pct"]
 
 
+def test_lone_capitalised_word_is_not_a_phrase():
+    out = R.phrases("Why would the State of New York do this? Buy ANSEM.", set())
+    names = [p for k, p in out if k == "name"]
+    assert "State" not in names and "Why" not in names
+    assert "New York" in names and "ANSEM" in names
+
+
 def test_phrases_prefer_mints_and_tickers():
     out = R.phrases("Buy $SI now 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump Super Intelligence is here", {"The"})
     assert out[0] == ("mint", "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump")

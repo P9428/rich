@@ -10,6 +10,7 @@ import websockets
 import common as C
 
 TAG_RE = re.compile(r"<[^>]+>")
+MIN_RECEIVE_SHARE = 0.001  # a receipt counts as a touch only at >= 0.1 % of supply; >= 1 % is a gift
 
 
 class TruthSocial:
@@ -93,7 +94,14 @@ class XApi:
         out = []
         for h in self.handles:
             if h["handle"] not in self.ids:
-                self.ids[h["handle"]] = self._get(f"https://api.x.com/2/users/by/username/{h['handle']}")["data"]["id"]
+                u = self._get(f"https://api.x.com/2/users/by/username/{h['handle']}")
+                if "data" not in u:
+                    C.append(C.path("monitor", "feed-errors.log"), {"feed": "XApi", "handle": h["handle"], "err": json.dumps(u.get("errors"))[:200]})
+                    self.ids[h["handle"]] = None
+                    continue
+                self.ids[h["handle"]] = u["data"]["id"]
+            if self.ids[h["handle"]] is None:
+                continue
             since = self.state.get("x:" + h["handle"])
             q = f"https://api.x.com/2/users/{self.ids[h['handle']]}/tweets?max_results=10&tweet.fields=created_at"
             if since:
@@ -179,6 +187,8 @@ class WalletTouch:
                 pass
             if kind == "receive" and share is not None and share >= 0.01:
                 kind = "gift"
+            elif kind == "receive" and (share is None or share < MIN_RECEIVE_SHARE):
+                continue  # AMENDMENT 1: fee claims and dust are not a touch
             await self.queue.put({"id": f"wallet:{sig}:{mint}", "feed": "wallet", "person": w["person"], "kind": kind,
                                  "text": f"{w['label']} {kind} {d:,.0f} of {mint}" + (f" ({share:.1%} of supply)" if share else ""),
                                  "mint": mint, "when": C.iso(tx.get("blockTime") or time.time()), "signer": signer})

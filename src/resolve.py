@@ -27,6 +27,8 @@ def phrases(text, ignore):
                 ph = " ".join(words[i:i + n])
                 if ph in ignore or ph.lower() in seen or len(ph) < 3:
                     continue
+                if n == 1 and not ph.isupper():
+                    continue  # AMENDMENT 1: a lone capitalised word ("State") is sentence noise unless written as a ticker (ANSEM)
                 seen.add(ph.lower())
                 out.append(("name", ph))
     return out
