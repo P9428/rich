@@ -1,0 +1,7 @@
+.env
+monitor/
+state/
+journal/
+out/
+__pycache__/
+.pytest_cache/

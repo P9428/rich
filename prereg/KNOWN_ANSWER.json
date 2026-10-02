@@ -1,0 +1,19 @@
+{
+  "note": "September 2026 ledger events (CryptoGorilla daily recaps, verified in ~/onchain-savage/data/notes.md). Spent: used to pin the resolver and the gates, never counted as trades.",
+  "resolver": [
+    {"when": "2026-09-29T00:00:00Z", "feed": "truth", "text": "We are making the official switch from Artificial Intelligence to Super Intelligence.", "expect_phrase": "Super Intelligence", "expect_symbol": "SI"},
+    {"when": "2026-09-21T20:00:00Z", "feed": "x", "text": "+++++", "expect_phrase": "+++++", "expect_symbol": "+++++"},
+    {"when": "2026-06-22T02:16:58Z", "feed": "x", "text": "i bought this bc of @0xn4te $ANSEM", "expect_phrase": "$ANSEM", "expect_symbol": "ANSEM"}
+  ],
+  "screen": [
+    {"name": "full dev bundle is rejected", "liq": 500000, "age_min": 5000, "buys_h1": 400, "sells_h1": 300, "mc": 128000000, "dev_create_sol": 84.74, "expect": false},
+    {"name": "fresh launch is rejected", "liq": 60000, "age_min": 3, "buys_h1": 900, "sells_h1": 100, "mc": 2000000, "dev_create_sol": 0.5, "expect": false},
+    {"name": "thin coin is rejected", "liq": 8000, "age_min": 600, "buys_h1": 80, "sells_h1": 20, "mc": 300000, "dev_create_sol": 0.0, "expect": false},
+    {"name": "breadth passes", "liq": 300000, "age_min": 1500, "buys_h1": 2342, "sells_h1": 2021, "mc": 37000000, "dev_create_sol": 0.0, "expect": true}
+  ],
+  "paper": [
+    {"name": "stop books at -30", "marks": [1.0, 0.9, 0.74], "expect_net_pct": -32.5},
+    {"name": "half at +100 then trail", "marks": [1.0, 1.5, 2.05, 2.6, 1.8], "expect_net_pct": 90.0},
+    {"name": "time stop at mark", "marks": [1.0, 1.1, 1.05], "hours": 25, "expect_net_pct": 2.5}
+  ]
+}
