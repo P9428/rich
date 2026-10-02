@@ -1,6 +1,7 @@
 """The touch feeds. Each produces event dicts {id, feed, person, kind, text, mint?, when, t_src}: t_src is the source's own
 timestamp (epoch seconds) so end-to-end latency is measurable. Polling feeds expose poll() and POLL; push feeds expose run()."""
 import asyncio
+import calendar
 import json
 import os
 import re
@@ -17,7 +18,8 @@ GIFT_SHARE = 0.01
 
 
 def _iso_to_epoch(s):
-    return time.mktime(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+    """UTC ISO-8601 to epoch seconds. calendar.timegm, never mktime: mktime applies local DST and shifts by an hour."""
+    return calendar.timegm(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S"))
 
 
 class TruthSocial:

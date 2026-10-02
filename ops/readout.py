@@ -48,8 +48,13 @@ lines = [
     f"paper: closed {n}, open {len(opens)}, wins {wins}, cum {cum:+.3f} SOL, mean {mean:+.3f}, mean loss {mean_loss:.3f}, max dd {dd:.3f}, loss streak {streak}",
     f"VERDICT {verdict}: {why}",
 ]
-if not os.environ.get("X_BEARER"):
-    lines.append("gap: X feed dormant (no X_BEARER); 11 of 14 ledger triggers lived on X")
+env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+has_key = os.path.exists(env_file) and any(l.startswith("X_BEARER=") and len(l.strip()) > 9 for l in open(env_file))
+if not has_key:
+    lines.append("gap: X feed dormant (no X_BEARER in .env); 11 of 14 ledger triggers lived on X")
+x_402 = sum(1 for r in C.read_jsonl(C.path("monitor", "feed-errors.log")) if r.get("feed") == "x" and "402" in str(r.get("err")))
+if x_402:
+    lines.append(f"X credits: {x_402} payment-required errors logged; top up at console.x.com or the stream stays down")
 text = "\n".join(lines)
 with open(C.path("out", "readout.txt"), "w", encoding="utf-8") as f:
     f.write(text + "\n")

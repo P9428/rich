@@ -32,6 +32,12 @@ def test_paper_exits(case):
     assert round(100 * pos.net_sol() / P.SIZE_SOL, 2) == case["expect_net_pct"]
 
 
+def test_iso_to_epoch_is_utc_regardless_of_dst():
+    import feeds as F
+    assert F._iso_to_epoch("2026-10-02T21:02:36.000Z") == 1790974956
+    assert F._iso_to_epoch("2026-01-15T12:00:00Z") == 1768478400
+
+
 def test_stream_rule_covers_roster():
     import feeds as F
     rule = F.XStream.rule_for(["blknoiz06", "finkd"])
