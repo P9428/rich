@@ -1,10 +1,12 @@
-"""Paper positions under the contract: 1 SOL size, −25 % stop booked at −30 %, half at +100 %, 30 % trail, 24 h time stop."""
+"""Paper positions under the contract: 1 SOL size, −10 % stop booked at −15 % or the mark if lower, out at 15 min if not above entry,
+half at +100 %, 30 % trail, 24 h time stop."""
 import common as C
 
 SIZE_SOL = 1.0
 FEE_RT = 0.025
-STOP = -0.25
-STOP_BOOK = -0.30
+STOP = -0.10
+STOP_BOOK = -0.15
+FAST_STOP_S = 15 * 60
 TAKE_AT = 1.00
 TRAIL = 0.30
 TIME_STOP_S = 24 * 3600
@@ -18,6 +20,7 @@ class Position:
         self.remaining = 1.0
         self.realised = 0.0          # fraction-of-size return already booked, before fees
         self.closed = False
+        self.fast_checked = False    # the 15-minute look happens once
         self.exits = []
 
     def to_dict(self):
@@ -43,8 +46,13 @@ class Position:
         before = len(self.exits)
         chg = price / self.entry - 1
         if chg <= STOP:
-            self._book(self.remaining, STOP_BOOK, t, "stop")
+            self._book(self.remaining, min(STOP_BOOK, chg), t, "stop")
             return self.exits[before:]
+        if not self.fast_checked and t - self.t0 >= FAST_STOP_S:
+            self.fast_checked = True
+            if chg <= 0:
+                self._book(self.remaining, chg, t, "stale")
+                return self.exits[before:]
         if self.remaining == 1.0 and chg >= TAKE_AT:
             self._book(0.5, chg, t, "take-half")
         self.peak = max(self.peak, price)

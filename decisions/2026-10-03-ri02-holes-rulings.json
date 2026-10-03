@@ -1,0 +1,189 @@
+{
+ "root": "556a7e4244ca02cb3ab2674a2bbc861a6486d6125b469d1b2add91a6d6c62beb",
+ "size": 16,
+ "options": [
+  {
+   "id": "A-close-both-now",
+   "do": "Freeze RI-03 today, before any trade: only a $ticker or mint in the person's own post, or a buy the roster wallet signed, may enter; everything else is screened and shadowed but never traded; a stop books the worse of -15 % and the mark. RI-02's twelve forecasts void as superseded; RI-03's are written before the sensor restarts",
+   "label": "INFERENCE",
+   "basis": "F01+F03+F04+I01+I03",
+   "asymmetry": "up: every counted trade tests the hypothesis and every booked loss is at least as bad as the tape; down: few trades, a leg that may end with no verdict",
+   "fails_if": "intent touches that pass the screen are so rare that the leg reaches 2026-12-31 with a handful of closes",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a paper count in which each trade is a touch; a what-if book that keeps scoring the string matches for free",
+   "ownership": "owned",
+   "system_effect": "a new contract inherits the lessons' rules before it trades, as the journal loop says it should",
+   "veto": ""
+  },
+  {
+   "id": "B-honest-stop-only",
+   "do": "Freeze RI-03 with only the honest stop booking; keep entering string matches and transfers",
+   "label": "HYPOTHESIS",
+   "basis": "F04+I03",
+   "asymmetry": "up: 40 closes within weeks and honest losses; down: the verdict is about noise",
+   "fails_if": "the 40 closes are non-touches and the KILL they produce is read as the hypothesis failing",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a fast count that measures the stop on coincidences",
+   "ownership": "owned",
+   "system_effect": "a lesson with cause 'model' is written and then not applied",
+   "veto": ""
+  },
+  {
+   "id": "C-leave-ri02",
+   "do": "Run RI-02 as frozen; carry both rules to a later contract",
+   "label": "HYPOTHESIS",
+   "basis": "F03",
+   "asymmetry": "up: no more churn today; down: the leg spends weeks counting trades already known not to be touches, with flattering stop losses",
+   "fails_if": "the same as B, plus booked losses smaller than the tape",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "nothing new",
+   "ownership": "owned",
+   "system_effect": "contract ids are protected from churn at the price of measuring the wrong thing",
+   "veto": ""
+  }
+ ],
+ "rows": [
+  {
+   "claim": "rich-2026-10-03-ri02-holes-F01",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "Every screen pass and both paper entries so far (3 of 3, 2 of 2) were not acts of the named person: a capitalised word and unsolicited transfers",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-F02",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "In 36 hours the feeds produced 1 intent-bearing touch that reached the screen and 0 signed buys; under an intent rule the book would have entered nothing",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-F03",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "RI-02 has 0 entries; the journal's own process says a new contract starts from the rules the lessons left, and RI-02 did not take the one rule on file",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-F04",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The stop books a fixed -15 % even when the mark that triggered it is far lower (two shadows first marked at -42 % and -89 %)",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-I01",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "40 closes of string matches would rule on a hypothesis they do not test; a KILL would retire 'a named person's touch moves the coin' for the wrong reason, and the tight stop would be judged on noise",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-I02",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "With the intent rule the leg will be slow: at the observed rate 40 closes by 2026-12-31 is unlikely, so the leg probably ends INSUFFICIENT rather than with a verdict",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-I03",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "A loss booked smaller than the mark already shows is a paper loss smaller than the real one; with a tight stop it is the main way the book can flatter itself",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-U01",
+   "layer": "L3",
+   "label": "UNKNOWN",
+   "text": "The true monthly rate of intent-bearing touches that pass the screen",
+   "ruling": "UNVERIFIED",
+   "alive": "0.00",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-M01",
+   "layer": "L1",
+   "label": "FACT",
+   "text": "Leg RI-02 stands at INSUFFICIENT: 0/40 closed trades",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-opt-A-close-both-now",
+   "layer": "L3",
+   "label": "INFERENCE",
+   "text": "[OPEN] Freeze RI-03 today, before any trade: only a $ticker or mint in the person's own post, or a buy the roster wallet signed, may enter; everything else is screened and shadowed but never traded; a stop books the worse of -15 % and the mark. RI-02's twelve forecasts void as superseded; RI-03's are written before the sensor restarts",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-opt-B-honest-stop-only",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Freeze RI-03 with only the honest stop booking; keep entering string matches and transfers",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-opt-C-leave-ri02",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Run RI-02 as frozen; carry both rules to a later contract",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-03-ri02-holes-R01",
+   "layer": "L4",
+   "label": "INFERENCE",
+   "text": "RULED: option A. Freeze RI-03 now with the intent rule and the honest stop, before anything trades. A slow leg that measures touches beats a fast one that measures coincidences; the string matches still run in the what-if book, so the tight stop keeps being scored on them at no cost to the count.",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  }
+ ],
+ "gates": [
+  {
+   "gate": "rich-capital-after-s1",
+   "rule": "s1_reached >= 1",
+   "measured": 0,
+   "reading": "NO BELIEF",
+   "from": "ops/readout.py verdict SURVIVES ON PAPER"
+  },
+  {
+   "gate": "rich-ri03-rate-known",
+   "rule": "intent_touches_screened_30d >= 8",
+   "measured": 1,
+   "reading": "NO BELIEF",
+   "from": "journal/events.jsonl: intent-bearing touches that reached the screen; below 8 in 30 days the leg cannot reach a verdict and the roster, not the stop, is the constraint"
+  }
+ ]
+}

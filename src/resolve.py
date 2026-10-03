@@ -36,7 +36,8 @@ def _lookup(kind, ph):
 
 
 def resolve(text, event_ts, ignore=()):
-    """Return (accepted, near_misses). accepted = [{'mint','symbol','name','phrase','pair'}] by the exact rule."""
+    """Return (accepted, near_misses). accepted = [{'mint','symbol','name','phrase','via','pair'}] by the exact rule; via is how the
+    post named it: mint, ticker or name."""
     accepted, near, taken = [], [], set()
     for kind, ph, pairs in POOL.map(lambda kp: _lookup(*kp), phrases(text, set(ignore))):
         key = ph.lower()
@@ -48,7 +49,7 @@ def resolve(text, event_ts, ignore=()):
         if best and best["baseToken"]["address"] not in taken:
             taken.add(best["baseToken"]["address"])
             accepted.append({"mint": best["baseToken"]["address"], "symbol": best["baseToken"]["symbol"],
-                             "name": best["baseToken"]["name"], "phrase": ph, "pair": best["pairAddress"]})
+                             "name": best["baseToken"]["name"], "phrase": ph, "via": kind, "pair": best["pairAddress"]})
         elif pairs and not exact:
             top = C.best_pair(pairs)
             near.append({"phrase": ph, "closest": top["baseToken"]["symbol"], "liq": (top.get("liquidity") or {}).get("usd")})

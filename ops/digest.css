@@ -1,0 +1,48 @@
+/* Layout: a single-column desk sheet. Bottom line first, then three windows of the same shape, numbers in mono. */
+:root {
+  --bg: #f2f5f3; --panel: #ffffff; --ink: #15211d; --quiet: #5c6b65; --line: #d3dbd7; --accent: #0d6657;
+  --good: #1b7a45; --warn: #9a6200; --bad: #b3322a; --track: #e1e7e4;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1513; --panel: #17201d; --ink: #e4ebe8; --quiet: #93a39c; --line: #2a3632; --accent: #56c7b1;
+  --good: #5fd08c; --warn: #e2b04a; --bad: #f0796f; --track: #26312d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1513; --panel: #17201d; --ink: #e4ebe8; --quiet: #93a39c; --line: #2a3632; --accent: #56c7b1;
+  --good: #5fd08c; --warn: #e2b04a; --bad: #f0796f; --track: #26312d; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); padding-inline: 18px; padding-block: 28px 48px }
+main { max-width: 680px; margin-inline: auto; display: flex; flex-direction: column; gap: 28px }
+h1 { font: 600 2.1rem/1.1 var(--cond); letter-spacing: -0.01em; margin: 2px 0 6px; text-wrap: balance }
+h2 { font: 600 1.35rem/1.2 var(--cond); margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--ink) }
+h2 .quiet, h3 .quiet { font: 400 0.85rem var(--sans) }
+h3 { font: 600 0.78rem var(--sans); text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent); margin: 20px 0 6px }
+p { margin: 0 0 8px }
+.eyebrow, .stamp { font: 0.8rem var(--mono); color: var(--quiet); margin: 0 }
+.quiet { color: var(--quiet); font-size: 0.9em }
+.good { color: var(--good); font-weight: 600 } .warn { color: var(--warn); font-weight: 600 } .bad { color: var(--bad); font-weight: 600 }
+.bottom { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 16px 18px 10px }
+.bottom h2 { border: 0; padding: 0; margin-bottom: 8px }
+nav { display: flex; gap: 8px; flex-wrap: wrap }
+nav a { font: 500 0.85rem var(--sans); color: var(--accent); border: 1px solid var(--line); background: var(--panel); padding: 5px 12px; text-decoration: none }
+nav a:hover, nav a:focus-visible { border-color: var(--accent); outline: none }
+section { scroll-margin-top: 12px }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 0 }
+.stats div { background: var(--panel); padding: 9px 11px; min-width: 0 }
+.stats dt { font-size: 0.72rem; color: var(--quiet) }
+.stats dd { margin: 0; font: 500 1.02rem var(--mono); font-variant-numeric: tabular-nums }
+ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column }
+li { padding: 7px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere }
+li:last-child { border-bottom: 0 }
+.date { font: 500 0.82rem var(--mono); color: var(--accent); margin-right: 4px }
+.rule { color: var(--accent); font-size: 0.92em }
+.meter { margin: 0 0 10px } .mrow { display: flex; justify-content: space-between; gap: 12px; font-size: 0.88rem }
+.mrow span:last-child { font-family: var(--mono); white-space: nowrap }
+.track { height: 8px; background: var(--track); margin-top: 3px } .fill { height: 100%; min-width: 2px }
+.fill.ok { background: var(--accent) } .fill.warn { background: var(--warn) } .fill.bad { background: var(--bad) }
+.scroll { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem }
+th { text-align: left; font-weight: 500; color: var(--quiet); font-size: 0.75rem }
+th, td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; font-variant-numeric: tabular-nums }
+td.claim { min-width: 220px }
+footer { font-size: 0.8rem; color: var(--quiet); border-top: 1px solid var(--line); padding-top: 12px }

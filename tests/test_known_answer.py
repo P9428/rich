@@ -44,6 +44,14 @@ def test_stream_rule_covers_roster():
     assert rule == "from:blknoiz06 OR from:finkd" and len(rule) <= 512
 
 
+def test_only_a_ticker_a_mint_or_a_signed_buy_is_intent():
+    import sensor as SN
+    post = {"kind": "post"}
+    assert SN.intent(post, {"via": "ticker"}) and SN.intent(post, {"via": "mint"}) and not SN.intent(post, {"via": "name"})
+    assert SN.intent({"kind": "buy", "mint": "m"}, {}) and not SN.intent({"kind": "gift", "mint": "m"}, {})
+    assert not SN.intent({"kind": "receive", "mint": "m"}, {}) and not SN.intent({"kind": "profile", "mint": "m"}, {})
+
+
 def test_lone_capitalised_word_is_not_a_phrase():
     out = R.phrases("Why would the State of New York do this? Buy ANSEM.", set())
     names = [p for k, p in out if k == "name"]

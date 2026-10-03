@@ -19,7 +19,7 @@ ALERTS = C.path("monitor", "alerts.log")
 STATE = C.path("state", "feeds.json")
 BOOK = C.path("state", "positions.json")
 HEART = C.path("monitor", "heartbeat.json")
-MARK_EVERY = 30
+MARK_EVERY = 5
 HANDLERS = ThreadPoolExecutor(max_workers=4)
 
 
@@ -32,6 +32,12 @@ def alert(line):
                         json.dumps({"chat_id": chat, "text": line, "disable_web_page_preview": True}).encode(), tries=2, timeout=10)
         except Exception as e:
             C.append(ALERTS, {"telegram_error": str(e)[:120]})
+
+
+def intent(ev, accepted):
+    """Did the person mean this coin? Their own post carried its $ticker or mint, or their wallet signed the buy.
+    A capitalised name, a receipt, a gift and a profile link can all be caused by anyone: screened and shadowed, never traded."""
+    return ev["kind"] == "buy" if ev.get("mint") else accepted.get("via") in ("mint", "ticker")
 
 
 class Sensor:
@@ -94,8 +100,10 @@ class Sensor:
             if not pair:
                 continue
             ok, why, snap = S.screen(pair)
-            res = {"mint": a["mint"], "symbol": a["symbol"], "pass": ok, "why": why, "snap": snap, "t_screened": time.time()}
-            if ok and snap["price"] > 0:
+            res = {"mint": a["mint"], "symbol": a["symbol"], "pass": ok, "why": why, "snap": snap, "intent": intent(ev, a), "t_screened": time.time()}
+            if ok and not res["intent"]:
+                alert(f"{ev['person']} {ev['kind']} -> {a['symbol']} {a['mint']} PASS but no intent: shadowed, not traded")
+            elif ok and snap["price"] > 0:
                 pos = self.book.enter(a["mint"], a["symbol"], snap["price"], time.time(), ev["id"])
                 res["entry"] = bool(pos)
                 res["t_entry"] = time.time()

@@ -1,7 +1,18 @@
-# rich — contract RI-01 (named-person sensor, paper only)
+# rich — contract RI-03 (named-person sensor, paper only)
 
-Frozen 2026-10-02. Every rule below is fixed before the first live event. Changes require a new contract id and a
-fresh paper count. No order is ever placed by this repo.
+Frozen 2026-10-03. Supersedes RI-02 (`prereg/RI-02.md`, no entry) and RI-01 (`prereg/RI-01.md`), which ended after 1 closed trade;
+its paper journal is `journal/paper.RI-01.jsonl` and is never counted here. Every rule below is fixed before the first counted trade. Changes
+require a new contract id and a fresh paper count. No order is ever placed by this repo.
+
+## What RI-02 and RI-03 change
+
+The loss is cut smaller and sooner. RI-01 lost 0.325 SOL on every stop (−25 % stop, booked −30 %, 2.5 % fees), which is above
+S1's own bar of mean loss < 0.3 SOL, and its only clock was 24 h: its one close sat 4 h 15 min before it stopped. RI-02 stops at
+−10 % (0.175 SOL a stop), marks open positions every 5 s instead of 30 s, and closes at 15 minutes anything that is not above
+its entry. RI-03 (ruled in `decisions/2026-10-03-ri02-holes.md`) adds the rule this leg's first lesson left: only a touch that shows intent may
+enter. Both RI-01 entries were coincidences, a capitalised word in an endorsement and a transfer nobody asked for. It also books a stop
+at the mark when the mark is already below −15 %. Feeds, resolver, screen and gates are unchanged. Amendments 1 to 3 below were made
+under RI-01 and carry over.
 
 ## Hypothesis
 
@@ -42,8 +53,12 @@ and never traded. From a wallet event the mint is known.
 
 ## Paper trade (size 1 SOL, modelled fees 2.5 % round trip)
 
+- intent: a screen pass enters only if the person's own post carried the coin's `$TICKER` or mint, or a roster wallet signed the buy.
+  Capitalised names, receipts, gifts and profile links are screened and shadowed, never traded
 - entry mark = DexScreener `priceUsd` at the first poll after the screen passes (never earlier)
-- hard stop −25 %, booked at −30 % (stops fill one print below: doctrine)
+- open positions are marked every 5 s
+- hard stop −10 %, booked at −15 % (stops fill one print below: doctrine), or at the mark itself when the mark is lower
+- fast stop: at the first mark 15 min or more after entry, a position at or below its entry price is closed whole at mark
 - take half at +100 %; remainder trails with 30 % give-back from peak
 - time stop 24 h at mark
 - one position per mint; at most 5 open
@@ -76,6 +91,15 @@ State…") matched a token named "State"; single-word phrases now count only whe
   ≥ 500,000 followers, is ≥ 1 year old, and its name/bio does not read as a token account; otherwise it is parked in
   `prereg/CANDIDATES.json` for the operator. Roster size is capped at 28 handles (one 512-character stream rule).
   Additions widen coverage only; no gate changes. Every change is logged in `journal/roster.jsonl`.
+
+## Amendment 3 (2026-10-03): The Foresight Journal, observation only
+
+- `ops/journal.py` records, before the outcome, what the operator expects this leg to do (`forecast/predictions.jsonl`), the beliefs those
+  forecasts rest on (`forecast/beliefs.jsonl`), the outcomes scored from `journal/` (`forecast/scores.jsonl`) and what each miss taught
+  (`forecast/lessons.jsonl`). The files are append-only and hash-chained.
+- Every screened touch, passed or rejected, is shadowed for 24 h under this contract's own exits at 5-minute marks
+  (`journal/shadow.jsonl`). Shadows are never counted as trades and feed no gate.
+- No rule above changes. Lessons become rules only in a later contract id.
 
 ## Known answer
 

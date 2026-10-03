@@ -12,7 +12,9 @@
     {"name": "breadth passes", "liq": 300000, "age_min": 1500, "buys_h1": 2342, "sells_h1": 2021, "mc": 37000000, "dev_create_sol": 0.0, "expect": true}
   ],
   "paper": [
-    {"name": "stop books at -30", "marks": [1.0, 0.9, 0.74], "expect_net_pct": -32.5},
+    {"name": "stop books at -15", "marks": [1.0, 0.95, 0.89], "hours": 0.1, "expect_net_pct": -17.5},
+    {"name": "a gap through the stop books the mark", "marks": [1.0, 0.6], "hours": 0.1, "expect_net_pct": -42.5},
+    {"name": "not above entry at 15 min is cut at mark", "marks": [1.0, 0.97, 0.98], "hours": 0.5, "expect_net_pct": -5.5},
     {"name": "half at +100 then trail", "marks": [1.0, 1.5, 2.05, 2.6, 1.8], "expect_net_pct": 90.0},
     {"name": "time stop at mark", "marks": [1.0, 1.1, 1.05], "hours": 25, "expect_net_pct": 2.5}
   ]
