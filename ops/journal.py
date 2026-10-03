@@ -6,12 +6,17 @@ forecast/scores.jsonl       outcomes, resolved from journal/ by a named metric w
 forecast/lessons.jsonl      why a forecast missed (or hit for the wrong reason), and which belief moved
 journal/shadow.jsonl        one row per screened touch, pass or fail: what the contract's exits would have booked over 24 h
 journal/shadow_paths.jsonl  the 24 h price path behind each shadow row
+journal/excursions.jsonl    one row per closed paper trade: best and worst mark while held, peak in the 24 h after exit
 
 The four forecast files are append-only and hash-chained; `verify` fails on any edit. Observation only: nothing here
 enters, exits or screens a trade.
 
   python ops/journal.py predict --claim ... --metric closed --direction ge --threshold 40 --confidence 0.8 --deadline 2026-12-31 --basis ...
+  python ops/journal.py predict ... --metric mk_intent@2026-10-04..2026-10-17 ...   (a market forecast: written first, read after its window)
+  python ops/journal.py predict ... --rests-on <market pred_id>                   (every leg forecast names the market forecast under it)
   python ops/journal.py predict --like <pred_id> --who irvin --confidence 0.6     (a second forecaster on the same question)
+  python ops/journal.py blind [--who irvin]                                       (open questions without anyone's numbers, to answer first)
+  python ops/journal.py market [--days 7]                                         (the market state table, day by day)
   python ops/journal.py resolve <pred_id> yes|no --note ...                       (manual metrics only)
   python ops/journal.py lesson --pred <pred_id> --what ... --why ... --cause model --belief B1 --p 0.2 --rule ...
   python ops/journal.py belief --id B9 --claim ... --p 0.6 --why ... --falsifier ...
@@ -19,6 +24,8 @@ enters, exits or screens a trade.
 """
 import argparse
 import calendar
+import datetime
+import glob
 import hashlib
 import json
 import math
@@ -43,6 +50,11 @@ PAPER = C.path("journal", "paper.jsonl")
 SHADOW = C.path("journal", "shadow.jsonl")
 PATHS = C.path("journal", "shadow_paths.jsonl")
 SHADOW_STATE = C.path("state", "shadow.json")
+EXC = C.path("journal", "excursions.jsonl")
+EXC_STATE = C.path("state", "excursion.json")
+SOL_USD = C.path("state", "sol_usd.json")
+MK_WAIT = C.path("state", "mk_wait.json")
+BLIND = C.path("out", "blind.md")
 REPORT = C.path("out", "journal.md")
 ERRORS = C.path("monitor", "journal-errors.log")
 
@@ -53,6 +65,21 @@ CAUSES = ("model", "variance", "measurement", "question", "execution")
 OPS = {"gt": lambda x, t: x > t, "ge": lambda x, t: x >= t, "lt": lambda x, t: x < t, "le": lambda x, t: x <= t,
        "eq": lambda x, t: x == t, "in": lambda x, t: t[0] <= x <= t[1]}
 AUTO_BELIEF = {True: "B1", False: "B3"}   # the belief whose seed prior forecasts a pass / a fail shadow
+WSOL = "So11111111111111111111111111111111111111112"
+MK_RE = re.compile(r"^(mk_(?:touches|resolved|intent|pass_rate|ret24|up|rtshare|rtgap))@(\d{4}-\d\d-\d\d)(?:\.\.(\d{4}-\d\d-\d\d))?$")
+MK_LATE = ("mk_ret24", "mk_up", "mk_rtgap")   # read from 24 h shadows: known a day after the window ends
+MK_TRIES = 12            # ticks (an hour) a due market forecast waits for its window's shadows to close before it voids
+MIN_RT = 3               # retweets against own words is undefined below this many closed shadows a side
+SIDES = ("market", "screen", "exits")
+# which half of the rule a metric speaks for once the market is excused; anything else is the book's result (both halves)
+SIDE = {**{k: "screen" for k in ("pass_rate", "passes", "entries", "entries_truth", "entries_wallet", "entries_x", "entries_profile", "closed",
+                                 "truth_share", "sh_fail_minus_pass", "sh_wins_fail", "sh_mean_net_fail")},
+        **{k: "exits" for k in ("stop_share", "stale_share", "mean_loss", "sh_stop_regret", "sh_stops_recovered", "sh_capture_pass")}}
+# the market family a metric rests on, for forecasts written before they named one
+REST = {**{k: "mk_intent" for k in ("closed", "entries", "entries_truth", "entries_wallet", "entries_x", "entries_profile", "kill_ever")},
+        "pass_rate": "mk_pass_rate",
+        **{k: "mk_ret24" for k in ("cum_net", "mean_net", "win_rate", "mean_loss", "s1", "stop_share", "stale_share", "sh_stop_regret",
+                                   "sh_peak100_pass", "sh_10x_pass", "sh_fail_minus_pass")}}
 
 
 # ---------------------------------------------------------------- chain
@@ -130,6 +157,7 @@ def shadow_stats(rows):
         "sh_10x_pass": sum(1 for r in side[True] if r["peak_pct"] >= 9.0),
         "sh_mean_net_pass": mean(side[True]), "sh_mean_net_fail": mean(side[False]),
         "sh_fail_minus_pass": mean(side[False]) - mean(side[True]) if both else None,
+        "sh_capture_pass": _capture(side[True]),
         "sh_n_stops": len(stops), "sh_stops_recovered": sum(1 for r in stops if (r["after_stop_peak_pct"] or -1) > 0),
         "sh_stop_regret": sum(1 for r in stops if (r["after_stop_peak_pct"] or -1) > 0) / len(stops) if len(stops) >= MIN_SIDE else None,
     }
@@ -249,23 +277,258 @@ def metrics():
         "stale_share_at_40": sum(1 for r in first40 if any(e["why"] == "stale" for e in r["exits"])) / 40 if at40 else None,
         "truth_share_at_40": sum(1 for r in first40 if r["event_id"].startswith("truth:")) / 40 if at40 else None})
     m.update(shadow_stats([r for r in C.read_jsonl(SHADOW) if r["leg"] == leg()]))   # exits differ by leg: never pooled
+    cut = [r["net_haircut"] for r in book(closes)]
+    known = bool(cut) and None not in cut
+    m.update({"cum_net_haircut": sum(cut) if known else None, "mean_net_haircut": sum(cut) / len(cut) if known else None})
     return m
+
+# ---------------------------------------------------------------- market state
+
+def _intent(ev, x):
+    """Did the person mean this coin? Rows the sensor wrote before it recorded intent are read the same way it now decides."""
+    if "intent" in x:
+        return x["intent"]
+    if ev.get("mint"):
+        return ev["kind"] == "buy"
+    a = next((a for a in ev.get("accepted", []) if a["mint"] == x["mint"]), {})
+    ph = str(a.get("phrase", ""))
+    return a.get("via") in ("mint", "ticker") or len(ph) >= 32 or ("$" + ph.lstrip("$")).lower() in (ev.get("text") or "").lower()
+
+
+def market(start, end=None, now=None):
+    """What the feeds brought over the UTC days start..end, whatever the contract did with it: touches seen, touches that named
+    a coin and touches that showed intent (each per day), the screen's pass rate, and how the window's screened coins did over
+    their 24 h as a group (median return and share up, first touches watched from the start). The 24 h figures stay None
+    until the window is over and every one of its shadows has closed. rtshare is the share of intent touches that are
+    retweets (the post starts 'RT @'); rtgap is the median 24 h return of intent touches in the person's own words less
+    that of retweeted ones."""
+    end, now = end or start, now or C.now()
+    days = (datetime.date.fromisoformat(end) - datetime.date.fromisoformat(start)).days + 1
+    ev = [e for e in C.read_jsonl(EVENTS) if start <= e["ts"][:10] <= end]
+    screened = [(e, x) for e in ev for x in e.get("screen", [])]
+    sh = [r for r in C.read_jsonl(SHADOW) if independent(r) and start <= r["t0"][:10] <= end]
+    pending = C.iso(now)[:10] <= end or any(start <= C.iso(s["t0"])[:10] <= end for s in C.load_json(SHADOW_STATE, {}).values())
+    rets = [r["ret_24h"] for r in sh]
+    rt = {e["id"] + "|" + x["mint"]: (e.get("text") or "").startswith("RT @") for e, x in screened if _intent(e, x)}
+    own, rts = ([r["ret_24h"] for r in sh if rt.get(r["key"]) is flag] for flag in (False, True))
+    return {"mk_rtshare": sum(rt.values()) / len(rt) if rt else None,
+            "mk_rtgap": _p50(own) - _p50(rts) if not pending and len(own) >= MIN_RT and len(rts) >= MIN_RT else None,
+            "mk_touches": len(ev) / days, "mk_resolved": sum(1 for e in ev if e.get("accepted")) / days,
+            "mk_intent": sum(1 for e, x in screened if _intent(e, x)) / days,
+            "mk_pass_rate": sum(1 for _, x in screened if x["pass"]) / len(screened) if screened else None,
+            "mk_ret24": _p50(rets) if rets and not pending else None,
+            "mk_up": sum(1 for x in rets if x > 0) / len(rets) if rets and not pending else None,
+            "days": days, "screened": len(screened), "shadows": len(sh), "pending": pending}
+
+
+def value(metric, m, now=None):
+    """A forecast's metric today: a market metric is computed for its own window, anything else is read from metrics()."""
+    mk = MK_RE.match(metric)
+    return market(mk.group(2), mk.group(3), now)[mk.group(1)] if mk else m.get(metric)
+
+
+def _base(metric):
+    return re.sub(r"_at_40$", "", metric)
+
+
+def rests(p, preds):
+    """(market forecast, inferred) a leg forecast rests on: the one it named, else for rows written before forecasts named
+    one, the same forecaster's market forecast of the matching family whose window holds the deadline (the tightest)."""
+    if p.get("rests_on"):
+        return next((q for q in preds if q["pred_id"] == p["rests_on"]), None), False
+    fam, best = REST.get(_base(p["metric"])), None
+    for q in preds:
+        mk = MK_RE.match(q["metric"])
+        if mk and mk.group(1) == fam and q["who"] == p["who"] and q["leg"] == p["leg"] and mk.group(2) <= p["deadline"] <= (mk.group(3) or mk.group(2)):
+            if best is None or (mk.group(3) or mk.group(2)) < (MK_RE.match(best["metric"]).group(3) or MK_RE.match(best["metric"]).group(2)):
+                best = q
+    return best, best is not None
+
+
+def blame(s, preds=None, scores=None):
+    """Where a resolved forecast's miss belongs: (side, why). market: the market forecast it rested on missed too.
+    screen / exits: the market did what was forecast, so the rule missed, and the metric says which half of the rule.
+    rule: the metric is the book's result, which both halves make; read the capture and what-if tables to split it."""
+    preds, scores = preds if preds is not None else C.read_jsonl(PREDS), scores if scores is not None else C.read_jsonl(SCORES)
+    p = next(p for p in preds if p["pred_id"] == s["pred_id"])
+    if MK_RE.match(p["metric"]):
+        return "market", "a forecast of the market itself"
+    q, inferred = rests(p, preds)
+    if q is None:
+        return "unassigned", "rests on no market forecast"
+    qs = next((x for x in scores if x["pred_id"] == q["pred_id"]), None)
+    tag = f"market forecast `{q['pred_id']}`" + (" (inferred)" if inferred else "")
+    if qs is None:
+        return "open", f"{tag} has not resolved"
+    if qs["outcome"] is None or qs["surprise_bits"] >= OWED_BITS:
+        return "market", f"{tag} missed too"
+    return SIDE.get(_base(p["metric"]), "rule"), f"{tag} held"
+
+
+# ---------------------------------------------------------------- winners, losers, capture
+
+def all_paper():
+    """Paper rows of every leg: the live journal and the ones archived beside it when a contract was superseded."""
+    return [r for f in sorted(glob.glob(os.path.join(os.path.dirname(PAPER), "paper*.jsonl"))) for r in C.read_jsonl(f)]
+
+
+def _capture(rows):
+    """Booked net as a share of the peak that was on offer: sum of net over sum of peaks above entry."""
+    top = sum(max(r["peak_pct"], 0.0) for r in rows)
+    return sum(r["net_sol"] for r in rows) / (P.SIZE_SOL * top) if top > 0 else None
+
+
+def movers(day, k=3):
+    """One UTC day of the shadow book: the screened coins that ran most and fell most, whether the contract entered each,
+    and how much of the peak its exits kept (the paper close where it entered, the shadow's booking where it did not)."""
+    paper = all_paper()
+    entered = {r["event_id"] + "|" + r["mint"] for r in paper if r.get("kind") == "entry"}
+    closed = {r["event_id"] + "|" + r["mint"]: r["net_sol"] for r in paper if r.get("kind") == "close"}
+    rows = []
+    for r in C.read_jsonl(SHADOW):
+        if independent(r) and r["t0"][:10] == day:
+            net = closed.get(r["key"], r["net_sol"])
+            rows.append({"key": r["key"], "symbol": r["symbol"], "pass": r["pass"], "entered": r["key"] in entered, "peak_pct": r["peak_pct"],
+                         "trough_pct": r["trough_pct"], "ret_24h": r["ret_24h"], "net_sol": net,
+                         "kept": round(net / (P.SIZE_SOL * r["peak_pct"]), 3) if r["peak_pct"] > 0 else None})
+    return {"day": day, "n": len(rows), "ran": sorted(rows, key=lambda r: -r["peak_pct"])[:k], "fell": sorted(rows, key=lambda r: r["trough_pct"])[:k],
+            "capture_entered": _capture([r for r in rows if r["entered"]]), "capture_pass": _capture([r for r in rows if r["pass"]]),
+            "capture_all": _capture(rows), "n_entered": sum(1 for r in rows if r["entered"])}
+
+
+def shadow_days():
+    return sorted({r["t0"][:10] for r in C.read_jsonl(SHADOW) if independent(r)})
+
+
+# ---------------------------------------------------------------- the haircut
+
+def haircut(liq, sol_usd=None):
+    """SOL a real round trip of the contract's size would lose against the deepest pair's mark, before fees. DexScreener
+    quotes a pool's liquidity as both sides, so a buy of `usd` moves a constant-product pool about usd / (liq / 2), and
+    the sale gives the same back: 4 x usd / liq of the size. An estimate from the entry snapshot, never a fill."""
+    sol_usd = sol_usd or C.load_json(SOL_USD, {}).get("usd")
+    if not sol_usd or not liq:
+        return None
+    return round(P.SIZE_SOL * min(1.0, 4 * P.SIZE_SOL * sol_usd / liq), 4)
+
+
+def book(closes=None):
+    """Each close of the leg beside what a real fill would have left of it: net, haircut at its entry liquidity, net after."""
+    liq = {(e["id"], x["mint"]): (x.get("snap") or {}).get("liq") for e in C.read_jsonl(EVENTS) for x in e.get("screen", [])}
+    out = []
+    for r in closes if closes is not None else [r for r in C.read_jsonl(PAPER) if r.get("kind") == "close"]:
+        h = haircut(liq.get((r["event_id"], r["mint"])))
+        out.append({**r, "liq": liq.get((r["event_id"], r["mint"])), "haircut": h, "net_haircut": None if h is None else round(r["net_sol"] - h, 4)})
+    return out
+
+
+# ---------------------------------------------------------------- excursion on the paper trades
+
+def _shadow_path(key):
+    s = C.load_json(SHADOW_STATE, {}).get(key)
+    return s["path"] if s else next((r["path"] for r in C.read_jsonl(PATHS) if r["key"] == key), [])
+
+
+def _excursion(s, now):
+    """Best and worst mark while the paper trade was held and the peak in the 24 h after it closed, from the shadow's
+    5-minute path of the same touch plus the marks taken after the close. The live book marks every few seconds; this sees
+    every fifth minute, so a best or worst between marks is missed and a short hold may have no mark at all."""
+    path, entry = _shadow_path(s["key"]), s["entry"]
+    held = [p for dt, p, _ in path if dt <= s["held_s"]]
+    after = [p for dt, p, _ in path if s["held_s"] < dt <= s["held_s"] + P.TIME_STOP_S] + [p for _, p in s["after"]]
+    pct = lambda xs, f: round(f(xs) / entry - 1, 4) if xs else None  # noqa: E731
+    best, post = pct(held, max), pct(after, max)
+    top = max(x for x in (best, post, 0.0) if x is not None)
+    return {"key": s["key"], "mint": s["mint"], "symbol": s["symbol"], "entry": entry, "held_s": s["held_s"], "net_sol": s["net_sol"],
+            "exits": s["exits"], "exit_pct": s["exit_pct"], "best_pct": best, "worst_pct": pct(held, min), "marks_held": len(held),
+            "after_exit_peak_pct": post, "marks_after": len(after), "kept_of_peak": round(s["exit_pct"] / top, 3) if top > 0 else None,
+            "open": now - s["t_exit"] < P.TIME_STOP_S}
+
+
+def excursion_tick(now=None, quotes=None):
+    """Follow every closed paper trade for 24 h after its exit, then write its excursion row. Also keeps the SOL quote the haircut uses."""
+    now = now or C.now()
+    st, done = C.load_json(EXC_STATE, {}), {r["key"] for r in C.read_jsonl(EXC)}
+    for r in all_paper():
+        key = r["event_id"] + "|" + r["mint"] if r.get("kind") == "close" else None
+        if key and key not in st and key not in done:
+            t_exit = _epoch(r["ts"])
+            st[key] = {"key": key, "mint": r["mint"], "symbol": r["symbol"], "entry": r["entry"], "t_exit": t_exit, "held_s": r["held_s"],
+                       "net_sol": r["net_sol"], "exits": [e["why"] for e in r["exits"]],
+                       "exit_pct": round(sum(e["frac"] * e["pct"] for e in r["exits"]), 4), "after": []}
+    if quotes is None:
+        quotes = _quotes([s["mint"] for s in st.values()] + [WSOL])
+        if quotes.get(WSOL, (0, 0))[0] > 0:
+            C.save_json(SOL_USD, {"usd": quotes[WSOL][0], "ts": C.iso(now)})
+    for key, s in list(st.items()):
+        price, dt = quotes.get(s["mint"], (0, 0))[0], now - s["t_exit"]
+        if price > 0 and 0 <= dt <= P.TIME_STOP_S:
+            s["after"].append([round(dt), price])
+        if dt >= P.TIME_STOP_S:
+            C.append(EXC, _excursion(s, now))
+            del st[key]
+    C.save_json(EXC_STATE, st)
+    return len(st)
+
+
+def excursions(now=None):
+    """Finished excursion rows, then the ones still inside their 24 h after exit (open: True, figures so far)."""
+    now = now or C.now()
+    return C.read_jsonl(EXC) + [_excursion(s, now) for s in C.load_json(EXC_STATE, {}).values()]
+
+
+# ---------------------------------------------------------------- rivals for the per-touch P(win)
+
+def rivals(rows):
+    """Brier of the per-touch P(win) on closed first-touch shadows, in close order, against two rivals given the same rows:
+    the frozen seed prior, and the running base rate of every screened touch so far (pass and fail pooled, add-one start)."""
+    rows = [r for r in rows if independent(r)]
+    if not rows:
+        return None
+    seeds = {b["id"]: b["p"] for b in reversed(C.read_jsonl(BELIEFS))}   # reversed: the first version of each id wins
+    se, k = {"per-touch": 0.0, "seed prior": 0.0, "base rate": 0.0}, 0
+    for n, r in enumerate(rows):
+        se["per-touch"] += r["brier"]
+        se["seed prior"] += (seeds[AUTO_BELIEF[r["pass"]]] - r["win"]) ** 2
+        se["base rate"] += ((k + 1) / (n + 2) - r["win"]) ** 2
+        k += r["win"]
+    out = {name: v / len(rows) for name, v in se.items()}
+    low = min(out.values())
+    return {"n": len(rows), "brier": out, "ahead": [name for name, v in out.items() if v <= low + 1e-12]}
+
 
 
 # ---------------------------------------------------------------- forecasts
 
-def predict(claim, metric, direction, threshold, confidence, deadline, basis, who="claude", beliefs=(), when="deadline", tags=()):
+def predict(claim, metric, direction, threshold, confidence, deadline, basis, who="claude", beliefs=(), when="deadline", tags=(),
+            rests_on=None, like=None, today=None):
     """when: 'deadline' reads the metric after the deadline day; 'early' confirms the moment the claim holds;
-    'defined' resolves the moment the metric exists (the *_at_40 family). metric 'manual' waits for `resolve`."""
+    'defined' resolves the moment the metric exists (the *_at_40 family). metric 'manual' waits for `resolve`.
+    A market metric (mk_<name>@<day>[..<day>]) is read only after its window. rests_on names the market forecast a leg
+    forecast stands on, so its miss can be read as market or rule; like is the forecast whose question this answers again.
+    Refused: a second answer by the same forecaster to the same question; an answer to someone's question once it has
+    resolved, passed its deadline or, for a market metric, once its window has opened (the answer is then partly known)."""
     assert 0 < confidence < 1 and when in ("deadline", "early", "defined") and direction in OPS, "bad forecast"
-    assert metric == "manual" or metric in metrics(), f"unknown metric {metric}"
+    mk = MK_RE.match(metric)
+    assert metric == "manual" or mk or metric in metrics(), f"unknown metric {metric}"
+    if mk:
+        last = datetime.date.fromisoformat(mk.group(3) or mk.group(2)) + datetime.timedelta(days=mk.group(1) in MK_LATE)
+        assert when == "deadline" and deadline >= str(last), f"a market forecast is read after its window: deadline {last} or later, when=deadline"
+    assert rests_on is None or any(p["pred_id"] == rests_on and MK_RE.match(p["metric"]) for p in C.read_jsonl(PREDS)), "rests_on must name a market forecast"
     assert all(b in {r["id"] for r in C.read_jsonl(BELIEFS)} for b in beliefs), "unknown belief id"
     time.strptime(deadline, "%Y-%m-%d")
+    preds, today = C.read_jsonl(PREDS), today or C.iso()[:10]
+    q = {"claim": claim, "metric": metric, "direction": direction, "threshold": threshold, "deadline": deadline}
+    assert not any(p["who"] == who and _q(p) == _q(q) for p in preds), f"{who} has already answered this question"
+    if like:
+        assert any(p["pred_id"] == like for p in preds), f"no forecast {like}"
+        assert like not in {s["pred_id"] for s in C.read_jsonl(SCORES)} and today <= deadline, "that question has resolved or passed its deadline"
+        assert not mk or today < mk.group(2), f"the window opened {mk.group(2) if mk else ''}: an answer now has seen part of the outcome"
     ts = C.iso()
     return chain_append(PREDS, {"pred_id": hashlib.sha256(f"{claim}{who}{ts}".encode()).hexdigest()[:12], "ts": ts, "leg": leg(), "who": who,
                                 "claim": claim, "basis": basis, "beliefs": list(beliefs), "metric": metric, "direction": direction,
                                 "threshold": threshold, "confidence": confidence, "deadline": deadline, "when": when,
-                                "tags": list(tags), "git": _git()})
+                                "tags": list(tags), "rests_on": rests_on, "like": like, "git": _git()})
 
 
 def _score(p, outcome, value, by, note=""):
@@ -282,23 +545,33 @@ def open_preds():
     return [p for p in C.read_jsonl(PREDS) if p["pred_id"] not in scored]
 
 
-def resolve_due(m=None, today=None):
+def resolve_due(m=None, today=None, now=None):
     """Score every open forecast whose metric can now speak. A metric still undefined after the deadline voids the
     forecast (outcome null): the question was unanswerable as posed, which is itself owed a lesson. A forecast written
-    for a contract that has since been superseded is voided too: its leg ended before the metric could speak."""
+    for a contract that has since been superseded is voided too: its leg ended before the metric could speak.
+    A due market forecast whose window still has open shadows (a quote outage kept them from closing) waits for the
+    next tick and voids only after MK_TRIES tries."""
     m, today, out = m or metrics(), today or C.iso()[:10], []
+    wait, still = C.load_json(MK_WAIT, {}), {}
     for p in open_preds():
         if p["metric"] == "manual":
             continue
         if p["leg"] != leg():
             out.append(_score(p, None, None, "superseded", f"leg ended, superseded by {leg()}"))
             continue
-        x, late = m.get(p["metric"]), today > p["deadline"]
+        x, late = value(p["metric"], m, now), today > p["deadline"]
         holds = None if x is None else int(OPS[p["direction"]](x, p["threshold"]))
         if (p["when"] == "early" and holds) or (p["when"] == "defined" and holds is not None) or (late and holds is not None):
             out.append(_score(p, holds, x, "metric"))
         elif late:
-            out.append(_score(p, None, None, "metric", "metric undefined at deadline"))
+            mk = MK_RE.match(p["metric"])
+            tries = wait.get(p["pred_id"], 0) + 1
+            if mk and market(mk.group(2), mk.group(3), now)["pending"] and tries < MK_TRIES:
+                still[p["pred_id"]] = tries
+            else:
+                out.append(_score(p, None, None, "metric", f"window still open after {tries} tries" if tries > 1 else "metric undefined at deadline"))
+    if still or wait:
+        C.save_json(MK_WAIT, still)
     return out
 
 
@@ -322,13 +595,19 @@ def belief(bid, claim, p, why, falsifier, n0=10, k=None, n=None, cause="seed"):
                                   "cause": cause, "leg": leg()})
 
 
-def lesson(what, why, cause, pred_id=None, belief_id=None, p=None, rule=None):
+def lesson(what, why, cause, pred_id=None, belief_id=None, p=None, rule=None, side=None):
     """cause: model (the belief was wrong), variance (the belief was fine, the draw was not), measurement (the instrument
-    lied), question (the forecast was badly posed), execution (a bug or an outage). Only `model` should move a belief."""
+    lied), question (the forecast was badly posed), execution (a bug or an outage). Only `model` should move a belief.
+    side: where the miss belongs, market, screen or exits. Left out, a lesson on a forecast takes what `blame` reads."""
     assert cause in CAUSES, f"cause must be one of {CAUSES}"
+    assert side is None or side in SIDES, f"side must be one of {SIDES}"
+    if side is None and pred_id:
+        s = next((s for s in C.read_jsonl(SCORES) if s["pred_id"] == pred_id), None)
+        side = blame(s)[0] if s else None
+        side = side if side in SIDES else None
     cur = current_beliefs()
     rec = {"lesson_id": hashlib.sha256(f"{what}{C.iso()}".encode()).hexdigest()[:12], "leg": leg(), "pred_id": pred_id, "what": what,
-           "why": why, "cause": cause, "belief": belief_id, "p_from": cur[belief_id]["p"] if belief_id else None, "p_to": p, "rule": rule}
+           "why": why, "cause": cause, "side": side, "belief": belief_id, "p_from": cur[belief_id]["p"] if belief_id else None, "p_to": p, "rule": rule}
     out = chain_append(LESSONS, rec)
     if belief_id and p is not None:
         b = cur[belief_id]
@@ -374,7 +653,9 @@ def _fmt(x, spec="{:.3f}"):
 def headline():
     b, n = _brier(C.read_jsonl(SCORES))
     done = [r for r in C.read_jsonl(SHADOW) if independent(r)]
-    return (f"Foresight Journal: {len(open_preds())} forecasts open, {n} scored" + (f" (Brier {b:.3f} vs 0.250 coin)" if n else "") +
+    m = metrics()
+    cut = f"paper {m['cum_net']:+.3f} SOL, {_fmt(m['cum_net_haircut'], '{:+.3f}')} after the fill haircut; " if m["closed"] else ""
+    return (f"Foresight Journal: {cut}{len(open_preds())} forecasts open, {n} scored" + (f" (Brier {b:.3f} vs 0.250 coin)" if n else "") +
             f"; lessons owed {len(owed())}; beliefs strained {sum(1 for c in belief_checks() if c['strained'])}; "
             f"shadows {len(C.load_json(SHADOW_STATE, {}))} open, {len(done)} closed clean -> out/journal.md")
 
@@ -388,7 +669,8 @@ def review():
     L += ["## 1. Lessons owed (write these before anything else)", ""]
     for s in owed():
         L.append(f"- `{s['pred_id']}` [{s['who']}] said {s['confidence']:.0%}: {s['claim']} -> "
-                 + ("VOID (metric never defined)" if s["outcome"] is None else f"{'YES' if s['outcome'] else 'NO'} (value {s['value']}), {s['surprise_bits']:.1f} bits of surprise"))
+                 + ("VOID (metric never defined)" if s["outcome"] is None else f"{'YES' if s['outcome'] else 'NO'} (value {s['value']}), {s['surprise_bits']:.1f} bits of surprise")
+                 + " | reads as {}: {}".format(*blame(s, list(preds.values()), scores)))
     L += ["- none"] if not owed() else []
 
     L += ["", "## 2. The model against the data", "", "| id | belief | seed p | now p | data k/n | posterior | verdict |", "|---|---|---|---|---|---|---|"]
@@ -411,16 +693,14 @@ def review():
             if rows:
                 L.append(f"| {lo:.0%}-{lo+0.2:.0%} (mean {sum(r['confidence'] for r in rows)/len(rows):.0%}) | {len(rows)} | {sum(r['outcome'] for r in rows)/len(rows):.0%} |")
     auto = [r for r in C.read_jsonl(SHADOW) if independent(r)]
-    if auto:
-        seeds = {b["id"]: b["p"] for b in reversed(C.read_jsonl(BELIEFS))}   # reversed: the first version of each id wins
-        base = sum((seeds[AUTO_BELIEF[r["pass"]]] - r["win"]) ** 2 for r in auto) / len(auto)
-        got = sum(r["brier"] for r in auto) / len(auto)
-        L += ["", f"- per-touch P(win), updated after every close: n={len(auto)}, Brier {got:.3f} against {base:.3f} for the frozen seed prior "
-                  f"(learning skill {1 - got / base:+.1%})" if base else ""]
+    rv = rivals(auto)
+    if rv:
+        L += ["", f"- per-touch P(win) against its rivals on {rv['n']} closed first touches (Brier): "
+                  + ", ".join(f"{name} {b:.3f}" for name, b in rv["brier"].items()) + f". Ahead: {' and '.join(rv['ahead'])}."]
 
     L += ["", "## 4. Open forecasts and where reality stands today", "", "| id | who | says | claim | metric now | needs | deadline |", "|---|---|---|---|---|---|---|"]
     for p in open_preds():
-        now = "by hand" if p["metric"] == "manual" else _fmt(m.get(p["metric"]), "{:.4g}")
+        now = "by hand" if p["metric"] == "manual" else _fmt(value(p["metric"], m), "{:.4g}")
         L.append(f"| `{p['pred_id']}` | {p['who']} | {p['confidence']:.0%} | {p['claim']} | {now} | {p['direction']} {p['threshold']} | {p['deadline']} ({p['when']}) |")
 
     L += ["", "## 5. What the screen turned away (shadow book: first touches, watched from the start, contract exits)", "",
@@ -442,8 +722,67 @@ def review():
         if l["pred_id"] in preds:
             L.append(f"  - forecast `{l['pred_id']}`: {preds[l['pred_id']]['claim']}")
     L += ["- none yet"] if not lessons else []
+    L += _more(m)
     text = "\n".join(L) + "\n"
     with open(REPORT, "w", encoding="utf-8") as f:
+        f.write(text)
+    return text
+
+
+def _more(m):
+    """Sections 7 to 9 of the review: the market, the day's winners and losers, the paper trades as a real fill would see them."""
+    today = datetime.date.fromisoformat(C.iso()[:10])
+    L = ["", "## 7. Market state (what the feeds brought, whatever the contract did with it)", "",
+         "| UTC day | touches | named a coin | showed intent | screen pass rate | screened coins, median 24 h | share up |", "|---|---|---|---|---|---|---|"]
+    for i in range(6, -1, -1):
+        d = str(today - datetime.timedelta(days=i))
+        k = market(d)
+        if k["mk_touches"]:
+            L.append(f"| {d} | {k['mk_touches']:.0f} | {k['mk_resolved']:.0f} | {k['mk_intent']:.0f} | {_fmt(k['mk_pass_rate'], '{:.0%}')} of {k['screened']} | "
+                     + ("pending" if k["pending"] else f"{_fmt(k['mk_ret24'], '{:+.1%}')} (n={k['shadows']})") + f" | {_fmt(k['mk_up'], '{:.0%}')} |")
+    L += ["", "## 8. The day's winners and losers, and what the exits kept (first touches, 24 h, peak above entry = 100 %)", ""]
+    days = shadow_days()[-7:]
+    for d in days:
+        v = movers(d)
+        L.append(f"- {d}: {v['n']} coins screened, {v['n_entered']} entered. Capture: entered {_fmt(v['capture_entered'], '{:+.0%}')}, "
+                 f"passed {_fmt(v['capture_pass'], '{:+.0%}')}, all screened {_fmt(v['capture_all'], '{:+.0%}')}")
+        for label, rows, key in (("ran", v["ran"], "peak_pct"), ("fell", v["fell"], "trough_pct")):
+            L.append(f"  - {label} most: " + "; ".join(
+                f"{r['symbol']} {r[key]:+.0%} ({'ENTERED' if r['entered'] else 'passed, not entered' if r['pass'] else 'rejected'}, "
+                f"booked {r['net_sol']:+.3f}, kept {_fmt(r['kept'], '{:+.0%}')})" for r in rows))
+    L += ["- no shadow has closed clean yet"] if not days else []
+    sol = C.load_json(SOL_USD, {})
+    floor = haircut(C.LIQ_FLOOR)
+    L += ["", "## 9. The paper trades as a real fill would see them", "",
+          f"haircut: a {P.SIZE_SOL:g} SOL round trip against the mark costs about 4 x size / pool liquidity before fees"
+          + (f" (SOL at ${sol['usd']:,.0f}: {floor / P.SIZE_SOL:.1%} at the ${C.LIQ_FLOOR:,} liquidity floor)" if floor is not None else " (no SOL quote yet)")
+          + f". Leg: cum {m['cum_net']:+.3f} SOL, {_fmt(m['cum_net_haircut'], '{:+.3f}')} after haircut; mean {_fmt(m['mean_net'], '{:+.3f}')}, "
+          f"{_fmt(m['mean_net_haircut'], '{:+.3f}')} after haircut.", "",
+          "| trade | exits | net SOL | after haircut | best while held | worst while held | peak in 24 h after exit | kept of peak |", "|---|---|---|---|---|---|---|---|"]
+    cut = {r["event_id"] + "|" + r["mint"]: r for r in book([r for r in all_paper() if r.get("kind") == "close"])}
+    for x in excursions():
+        b = cut.get(x["key"], {})
+        L.append(f"| {x['symbol']}{' (still inside its 24 h)' if x['open'] else ''} | {', '.join(x['exits'])} | {x['net_sol']:+.3f} | {_fmt(b.get('net_haircut'), '{:+.3f}')} | "
+                 f"{_fmt(x['best_pct'], '{:+.1%}')} | {_fmt(x['worst_pct'], '{:+.1%}')} | {_fmt(x['after_exit_peak_pct'], '{:+.1%}')} | {_fmt(x['kept_of_peak'], '{:+.0%}')} |")
+    L += ["", "best and worst come from 5-minute marks (the live book marks every few seconds), so '-' means no mark fell inside the hold."]
+    return L
+
+
+def _q(p):
+    return json.dumps([p["claim"], p["metric"], p["direction"], p["threshold"], p["deadline"]], sort_keys=True)
+
+
+def blind(who="irvin"):
+    """Open questions `who` has not answered, with nobody's odds or reasoning, and the command that answers each."""
+    preds = C.read_jsonl(PREDS)
+    mine, seen, L = {_q(p) for p in preds if p["who"] == who}, set(), [f"# Open questions for {who}: answer before reading anyone's odds", ""]
+    for p in sorted(open_preds(), key=lambda p: p["deadline"]):
+        if p["who"] != who and _q(p) not in mine and _q(p) not in seen:
+            seen.add(_q(p))
+            L += [f"- by {p['deadline']}: {p['claim']}", f"  `python ops/journal.py predict --like {p['pred_id']} --who {who} --confidence <your odds, 0 to 1>`"]
+    L += ["- nothing open is unanswered"] if not seen else []
+    text = "\n".join(L) + "\n"
+    with open(BLIND, "w", encoding="utf-8") as f:
         f.write(text)
     return text
 
@@ -451,6 +790,7 @@ def review():
 def tick():
     try:
         shadow_tick()
+        excursion_tick()
     except Exception as e:   # a DexScreener outage must not stop forecasts resolving
         C.append(ERRORS, {"where": "shadow", "err": str(e)[:200]})
     try:
@@ -466,6 +806,8 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("tick", "review", "metrics", "verify"):
         sub.add_parser(name)
+    sub.add_parser("blind").add_argument("--who", default="irvin")
+    sub.add_parser("market").add_argument("--days", type=int, default=7)
     a = sub.add_parser("predict")
     a.add_argument("--like", help="pred_id whose question to answer again as another forecaster")
     for flag in ("claim", "metric", "direction", "deadline", "basis"):
@@ -476,12 +818,13 @@ def main():
     a.add_argument("--when", default="deadline")
     a.add_argument("--beliefs", default="")
     a.add_argument("--tags", default="")
+    a.add_argument("--rests-on", help="pred_id of the market forecast this rests on, or 'none' with the reason in --basis")
     a = sub.add_parser("resolve")
     a.add_argument("pred_id")
     a.add_argument("outcome", choices=("yes", "no"))
     a.add_argument("--note", required=True)
     a = sub.add_parser("lesson")
-    for flag, req in (("what", True), ("why", True), ("cause", True), ("pred", False), ("belief", False), ("rule", False)):
+    for flag, req in (("what", True), ("why", True), ("cause", True), ("pred", False), ("belief", False), ("rule", False), ("side", False)):
         a.add_argument("--" + flag, required=req)
     a.add_argument("--p", type=float)
     a = sub.add_parser("belief")
@@ -502,18 +845,26 @@ def main():
         bad = verify()
         print("\n".join(bad) or "chain intact")
         sys.exit(1 if bad else 0)
+    elif args.cmd == "blind":
+        print(blind(args.who))
+    elif args.cmd == "market":
+        today = datetime.date.fromisoformat(C.iso()[:10])
+        print(json.dumps({str(today - datetime.timedelta(days=i)): market(str(today - datetime.timedelta(days=i))) for i in range(args.days - 1, -1, -1)}, indent=1))
     elif args.cmd == "predict":
         src = next(p for p in C.read_jsonl(PREDS) if p["pred_id"] == args.like) if args.like else {}
+        if not src and not MK_RE.match(args.metric or "") and not args.rests_on:
+            ap.error("name the market forecast this rests on: --rests-on <pred_id> (write the market forecast first), or --rests-on none with the reason in --basis")
+        rests_on = src.get("rests_on") if src else None if args.rests_on in (None, "none") else args.rests_on
         thr = src.get("threshold") if args.threshold is None else [float(x) for x in args.threshold.split(",")] if "," in args.threshold else float(args.threshold)
         r = predict(args.claim or src["claim"], args.metric or src["metric"], args.direction or src["direction"], thr, args.confidence,
                     args.deadline or src["deadline"], args.basis or f"second forecast on {args.like}", args.who,
                     [b for b in args.beliefs.split(",") if b] or src.get("beliefs", []), src.get("when", args.when),
-                    [t for t in args.tags.split(",") if t] or src.get("tags", []))
+                    [t for t in args.tags.split(",") if t] or src.get("tags", []), rests_on, args.like)
         print(r["pred_id"], r["claim"])
     elif args.cmd == "resolve":
         print(resolve_manual(args.pred_id, int(args.outcome == "yes"), args.note))
     elif args.cmd == "lesson":
-        print(lesson(args.what, args.why, args.cause, args.pred, args.belief, args.p, args.rule)["lesson_id"])
+        print(lesson(args.what, args.why, args.cause, args.pred, args.belief, args.p, args.rule, args.side)["lesson_id"])
     elif args.cmd == "belief":
         print(belief(args.id, args.claim, args.p, args.why, args.falsifier, args.n0, args.k, args.n)["h"])
 

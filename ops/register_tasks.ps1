@@ -1,7 +1,7 @@
 # Registers the workstation tasks through ~/ops/run-hidden.vbs (no console pop-ups), same as the sibling repos.
 #   rich - SENSOR GUARD : at logon and every 5 minutes, keeps src/sensor.py alive 24/7
 #   rich - READOUT      : daily 05:30 local: loss-first gates on the paper journal -> out/readout.txt
-#   rich - FORESIGHT    : daily 06:05 local: lessons owed, digest, republish the Rich Foresight artifact (ops/digest.ps1)
+#   rich - FORESIGHT    : daily 06:05 local: lessons owed, tomorrow's market forecasts, digest, update the Rich Foresight Doc (ops/digest.ps1)
 #   rich - JOURNAL     : every 5 minutes: shadow marks, forecast resolution, out/journal.md (ops/journal.py tick)
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $vbs = Join-Path $env:USERPROFILE "ops\run-hidden.vbs"
