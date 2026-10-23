@@ -367,7 +367,8 @@ class Duval:
         mcap_usd = (v_sol / v_tok * 1e9 * self.sol_usd) if (v_sol and v_tok and self.sol_usd) else None
         hits = match(name, sym, self.terms)
         C.append(LAUNCHES, {"ts": C.iso(t), "mint": mint, "name": name[:60], "symbol": sym[:20], "mcap_usd": round(mcap_usd) if mcap_usd else None,
-                            "init_sol": m.get("solAmount"), "pool": m.get("pool"), "mayhem": bool(m.get("is_mayhem_mode")), "match": hits[:4]})
+                            "init_sol": m.get("solAmount"), "pool": m.get("pool"), "mayhem": bool(m.get("is_mayhem_mode")), "match": hits[:4],
+                            "curve": m.get("bondingCurveKey"), "v_sol": round(v_sol, 3)})
         if not hits:
             return
         self.matched += 1
@@ -417,7 +418,8 @@ class Duval:
         ok = not why
         snap = {"price": (v_sol / v_tok * self.sol_usd) if (v_tok and self.sol_usd) else 0, "liq": round(v_sol * (self.sol_usd or 0)),
                 "mcap_usd": round(mcap_usd) if mcap_usd else None, "v_sol": v_sol, "v_tok": v_tok, "init_sol": m.get("solAmount"),
-                "dev": m.get("traderPublicKey"), "age_s": round(time.time() - t, 2), "chain": chain}
+                "dev": m.get("traderPublicKey"), "age_s": round(time.time() - t, 2), "chain": chain, "curve": m.get("bondingCurveKey"),
+                "sig": m.get("signature")}
         res = {"mint": mint, "symbol": sym, "pass": ok, "why": why, "snap": snap, "intent": True, "t_screened": time.time()}
         pos = None
         if ok:
