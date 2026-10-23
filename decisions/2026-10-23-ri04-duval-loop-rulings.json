@@ -1,0 +1,207 @@
+{
+ "root": "9997e353b98f459945bb3143213466a73bef28f3e2ae91f4a152df7c1c7d7d76",
+ "size": 17,
+ "options": [
+  {
+   "id": "A-literal-loop",
+   "do": "Freeze RI-04 as the paragraph reads, with the wallet's own medians as the exit: PumpPortal launch feed; a launch is in play when its name or symbol carries a proper noun from a headline published in the last 60 minutes (Google News top and section feeds, refreshed every minute); enter at detection if the curve market cap is under $10K and the pool is plain pump; size 1.5 SOL; out whole at +20 %, -20 % or 60 s, whichever comes first, at the curve's own sell price after fees; at most 3 open, one entry per mint ever; gates G1-G4 and S1 scaled to the size (G2 12 SOL, S1 mean loss under 0.45 SOL); give-up 2026-11-30",
+   "label": "INFERENCE",
+   "basis": "F01+F02+F03+F04+I01+I03",
+   "asymmetry": "up: every counted trade is his loop at his numbers with worse fills than his; down: the rate is unknown (U01) and the first-buyer entry is earlier than his median (I02)",
+   "fails_if": "news-matched launches under $10K are so rare that 40 closes do not arrive by the give-up date, or so common that the book is full and the count is a sample of the queue, not the rule",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a counted paper leg of the Duval loop with honest fills, a launches file with every launch and its headline match for the next contract to mine, and a journal that can say whether age at entry, term, or size is the variable",
+   "ownership": "owned",
+   "system_effect": "the readout, the Foresight Journal, the morning command and the guard keep running on the same files; only the sensor module changes",
+   "veto": ""
+  },
+  {
+   "id": "B-wait-for-first-buyer",
+   "do": "Same as A, but enter only after the curve shows a buy that is not the dev's, and still inside 30 s of the create message",
+   "label": "HYPOTHESIS",
+   "basis": "I02",
+   "asymmetry": "up: closer to his median age at entry and skips launches nobody touches; down: needs a 1 s poll of every matched curve for 30 s, and the paragraph does not say it",
+   "fails_if": "the extra poll doubles RPC load for a rule the operator did not state, and the count then measures a filter rather than his loop",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a filtered count",
+   "ownership": "owned",
+   "system_effect": "a rule added before the first lesson, which the journal loop says to leave to the next contract",
+   "veto": ""
+  },
+  {
+   "id": "C-ri03-exits",
+   "do": "Keep RI-03's exits (-10 % stop booked -15 %, 15-minute stale cut, half at +100 %, 30 % trail, 24 h) on top of the new entry",
+   "label": "HYPOTHESIS",
+   "basis": "F05",
+   "asymmetry": "up: the gates and the paper module are reused as they are; down: contradicts 'out within a minute' and his -19 % loser median",
+   "fails_if": "the count rules on a hold he never used and the verdict says nothing about his loop",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "nothing new",
+   "ownership": "owned",
+   "system_effect": "the new leg inherits an exit the operator just retired",
+   "veto": ""
+  }
+ ],
+ "rows": [
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-F01",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "In the wallet's edge era (May 2025 - Feb 2026) scalps under 2 SOL held under 60 s won 61 % and made +486 SOL on 3,894 positions; the same wallet's positions over 5 SOL or with 4+ buys won 42 % and made +130 SOL on 2,954",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-F02",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "His winners' median return is +20 % and his losers' median is -19 %, both reached in about a minute; 62 % of entries are under 30 s old and the median entry market cap is $8.4K",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-F03",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The launch feed is keyless and carries the curve reserves at creation; marks can be read from the curve account over public RPC in about a second; trade-by-trade data needs a paid key",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-F04",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "A 1.5 SOL buy on a fresh curve (30 SOL virtual) moves the price about 5 %, so the book's own impact costs roughly a tenth of a round trip; a mark that ignores it flatters every close",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-F05",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The readout gates were written for 1 SOL (G2 8 SOL drawdown, S1 mean loss under 0.3 SOL); at 1.5 SOL with a -20 % exit the typical loss is about 0.36 SOL before impact",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-I01",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "An exit at +20 % / -20 % / 60 s is the wallet's own median win, median loss and median hold; any other exit tests a loop he did not run",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-I02",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "Entering at detection (age about 1 s, before any outside buyer) is earlier than most of his entries (median age 14 s); the book will sometimes be the first buyer after the dev. The paragraph says 'within 30 seconds', so detection-time entry is inside the rule, and the 'created' stamp on each close lets the journal measure whether age at entry matters",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-I03",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "Honest fills (curve math both sides, 1 % pump fee, 0.001 SOL tx fee a side) make the paper book worse than his tape, not better; a loop that survives them is more likely to survive a real tip and a slow landing",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-U01",
+   "layer": "L3",
+   "label": "UNKNOWN",
+   "text": "The daily rate of launches that match the hour's headlines and sit under $10K: whether 40 closes take a day or a month",
+   "ruling": "UNVERIFIED",
+   "alive": "0.00",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-U02",
+   "layer": "L3",
+   "label": "UNKNOWN",
+   "text": "Whether Google News proper nouns are the 'news' his names come from, or whether his narratives come from X trends the sensor cannot see",
+   "ruling": "UNVERIFIED",
+   "alive": "0.00",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-M01",
+   "layer": "L1",
+   "label": "FACT",
+   "text": "Leg RI-04 stands at INSUFFICIENT: 0/40 closed trades",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-opt-A-literal-loop",
+   "layer": "L3",
+   "label": "INFERENCE",
+   "text": "[OPEN] Freeze RI-04 as the paragraph reads, with the wallet's own medians as the exit: PumpPortal launch feed; a launch is in play when its name or symbol carries a proper noun from a headline published in the last 60 minutes (Google News top and section feeds, refreshed every minute); enter at detection if the curve market cap is under $10K and the pool is plain pump; size 1.5 SOL; out whole at +20 %, -20 % or 60 s, whichever comes first, at the curve's own sell price after fees; at most 3 open, one entry per mint ever; gates G1-G4 and S1 scaled to the size (G2 12 SOL, S1 mean loss under 0.45 SOL); give-up 2026-11-30",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-opt-B-wait-for-first-buyer",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Same as A, but enter only after the curve shows a buy that is not the dev's, and still inside 30 s of the create message",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-opt-C-ri03-exits",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Keep RI-03's exits (-10 % stop booked -15 %, 15-minute stale cut, half at +100 %, 30 % trail, 24 h) on top of the new entry",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-23-ri04-duval-loop-R01",
+   "layer": "L4",
+   "label": "INFERENCE",
+   "text": "RULED: option A. Paper-trade the paragraph as written with the wallet's own medians as the exit and honest curve fills, at most 3 open, 1.5 SOL. The rate (U01) and the first-buyer question (I02) are the first forecasts the leg writes, not rules it adds.",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  }
+ ],
+ "gates": [
+  {
+   "gate": "rich-capital-after-s1",
+   "rule": "s1_reached >= 1",
+   "measured": 0,
+   "reading": "NO BELIEF",
+   "from": "ops/readout.py verdict SURVIVES ON PAPER"
+  },
+  {
+   "gate": "rich-ri04-rate-known",
+   "rule": "matched_launches_per_day >= 10",
+   "measured": 0,
+   "reading": "NO BELIEF",
+   "from": "journal/events.jsonl: news-matched launches per day; below 10 a day the leg cannot reach 40 closes in a week and the news window, not the exit, is the constraint"
+  }
+ ]
+}

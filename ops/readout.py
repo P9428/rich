@@ -6,8 +6,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import common as C  # noqa: E402
 
 
-def stats(nets):
-    """Gate arithmetic on closed-trade nets in close order. Shared with ops/journal.py so forecasts resolve on the same numbers."""
+def paper_size():
+    """The leg's position size in SOL, read from the first entry row of the paper journal (1 SOL when the book is empty)."""
+    for r in C.read_jsonl(C.path("journal", "paper.jsonl")):
+        if r.get("kind") == "entry" and r.get("size_sol"):
+            return float(r["size_sol"])
+    return 1.0
+
+
+def stats(nets, size=None):
+    """Gate arithmetic on closed-trade nets in close order. Shared with ops/journal.py so forecasts resolve on the same numbers.
+    The SOL bars (G2 drawdown 8, S1 mean loss 0.3) were written for 1 SOL and scale with the leg's size (RI-04: 1.5 SOL)."""
+    size = size or paper_size()
+    dd_bar, loss_bar = 8 * size, 0.3 * size
     n = len(nets)
     wins = sum(1 for x in nets if x > 0)
     losses = [x for x in nets if x <= 0]

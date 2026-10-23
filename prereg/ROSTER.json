@@ -1,32 +1,121 @@
 {
-  "truth": [
-    {"acct": "realDonaldTrump", "person": "Donald Trump"}
-  ],
-  "x": [
-    {"handle": "blknoiz06", "person": "Ansem"},
-    {"handle": "elonmusk", "person": "Elon Musk"},
-    {"handle": "finkd", "person": "Mark Zuckerberg"},
-    {"handle": "vladtenev", "person": "Vlad Tenev"},
-    {"handle": "TheRoaringKitty", "person": "Keith Gill"},
-    {"handle": "Raydium", "person": "Raydium (protocol account)"},
-    {"handle": "LaunchOnSF", "person": "stonk.fun (platform account)"},
-    {"handle": "solana", "person": "Solana (foundation account)"},
-    {"handle": "jito", "person": "Jito (protocol account)"},
-    {"handle": "pumpdotfun", "person": "pump.fun (platform account)"},
-    {"handle": "jackdoherty", "person": "Jack Doherty"},
-    {"handle": "BasedBeffJezos", "person": "Beff Jezos"},
-    {"handle": "LucaNetz", "person": "Luca Netz"},
-    {"handle": "0xn4te", "person": "Nate (0xn4te)"},
-    {"handle": "MustStopMurad", "person": "Murad"}
-  ],
-  "recap_accounts": ["CryptoGorilla", "whalewatchalert", "AlphxInsights"],
-  "x_rejected": [],
-  "wallets": [
-    {"address": "7oU9nR9VEvFPwvp2PpXo2LQc6A92QRhcUTwhLWT7MsDM", "label": "Ansem Bitgo Custodial", "person": "Ansem"},
-    {"address": "GV6UUmNxz2RpKxmNAPadYKb7uQpszwqQAu3qLJxVdC52", "label": "ansemconzimp pump.fun fee wallet", "person": "ANSEM deployer"}
-  ],
-  "platform_wallets_not_subscribed": [
-    {"address": "5CEbueQnq1Ym2uSSx2xXds3jQAqT1BDnkA59RZobSPAG", "label": "Stonkfun Buybacks", "why": "buyback bot, thousands of txs a day; a flywheel, not a person. House-token detection belongs to the stonk.fun pools API, not this stream."}
-  ],
-  "ignore_terms": ["The", "This", "That", "United States", "America", "Republic", "Korea", "Europe", "China", "President", "Congress", "Senate", "House", "Great", "Thank", "God", "Bless", "RT"]
+ "truth": [
+  {
+   "acct": "realDonaldTrump",
+   "person": "Donald Trump"
+  }
+ ],
+ "x": [
+  {
+   "handle": "blknoiz06",
+   "person": "Ansem"
+  },
+  {
+   "handle": "elonmusk",
+   "person": "Elon Musk"
+  },
+  {
+   "handle": "finkd",
+   "person": "Mark Zuckerberg"
+  },
+  {
+   "handle": "vladtenev",
+   "person": "Vlad Tenev"
+  },
+  {
+   "handle": "TheRoaringKitty",
+   "person": "Keith Gill"
+  },
+  {
+   "handle": "Raydium",
+   "person": "Raydium (protocol account)"
+  },
+  {
+   "handle": "LaunchOnSF",
+   "person": "stonk.fun (platform account)"
+  },
+  {
+   "handle": "solana",
+   "person": "Solana (foundation account)"
+  },
+  {
+   "handle": "jito",
+   "person": "Jito (protocol account)"
+  },
+  {
+   "handle": "pumpdotfun",
+   "person": "pump.fun (platform account)"
+  },
+  {
+   "handle": "jackdoherty",
+   "person": "Jack Doherty"
+  },
+  {
+   "handle": "BasedBeffJezos",
+   "person": "Beff Jezos"
+  },
+  {
+   "handle": "LucaNetz",
+   "person": "Luca Netz"
+  },
+  {
+   "handle": "0xn4te",
+   "person": "Nate (0xn4te)"
+  },
+  {
+   "handle": "MustStopMurad",
+   "person": "Murad"
+  },
+  {
+   "handle": "IGN",
+   "person": "IGN",
+   "added": "2026-10-17T10:00:02Z",
+   "why": "auto: 10,406,697 followers, 2 recap mentions, 0 linked tokens"
+  }
+ ],
+ "recap_accounts": [
+  "CryptoGorilla",
+  "whalewatchalert",
+  "AlphxInsights"
+ ],
+ "x_rejected": [],
+ "wallets": [
+  {
+   "address": "7oU9nR9VEvFPwvp2PpXo2LQc6A92QRhcUTwhLWT7MsDM",
+   "label": "Ansem Bitgo Custodial",
+   "person": "Ansem"
+  },
+  {
+   "address": "GV6UUmNxz2RpKxmNAPadYKb7uQpszwqQAu3qLJxVdC52",
+   "label": "ansemconzimp pump.fun fee wallet",
+   "person": "ANSEM deployer"
+  }
+ ],
+ "platform_wallets_not_subscribed": [
+  {
+   "address": "5CEbueQnq1Ym2uSSx2xXds3jQAqT1BDnkA59RZobSPAG",
+   "label": "Stonkfun Buybacks",
+   "why": "buyback bot, thousands of txs a day; a flywheel, not a person. House-token detection belongs to the stonk.fun pools API, not this stream."
+  }
+ ],
+ "ignore_terms": [
+  "The",
+  "This",
+  "That",
+  "United States",
+  "America",
+  "Republic",
+  "Korea",
+  "Europe",
+  "China",
+  "President",
+  "Congress",
+  "Senate",
+  "House",
+  "Great",
+  "Thank",
+  "God",
+  "Bless",
+  "RT"
+ ]
 }

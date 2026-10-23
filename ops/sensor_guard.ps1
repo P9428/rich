@@ -1,4 +1,5 @@
-# Starts src/sensor.py if no live sensor is heartbeating. Idempotent; safe every 5 minutes.
+# Starts the leg's sensor if no live one is heartbeating. Idempotent; safe every 5 minutes.
+# RI-04 (2026-10-23): the sensor is src/duval.py (the Duval loop); src/sensor.py (the named-person sensor, RI-01..03) is retired.
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $hb = Join-Path $root "monitor\heartbeat.json"
 $alive = $false
@@ -17,7 +18,7 @@ if (-not $alive) {
     if (Test-Path $envFile) {
         Get-Content $envFile | Where-Object { $_ -match '^\s*([A-Z_]+)=(.*)$' } | ForEach-Object { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim(), "Process") }
     }
-    Start-Process -FilePath "python" -ArgumentList @((Join-Path $root "src\sensor.py")) -WorkingDirectory $root -WindowStyle Hidden `
+    Start-Process -FilePath "python" -ArgumentList @((Join-Path $root "src\duval.py")) -WorkingDirectory $root -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $root "monitor\sensor-stdout.log") -RedirectStandardError (Join-Path $root "monitor\sensor-stderr.log")
     Add-Content (Join-Path $root "monitor\guard.log") ("{0} started sensor" -f (Get-Date -Format o))
 }

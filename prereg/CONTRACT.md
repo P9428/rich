@@ -1,107 +1,111 @@
-# rich — contract RI-03 (named-person sensor, paper only)
+# rich — contract RI-04 (the Duval loop, paper only)
 
-Frozen 2026-10-03. Supersedes RI-02 (`prereg/RI-02.md`, no entry) and RI-01 (`prereg/RI-01.md`), which ended after 1 closed trade;
-its paper journal is `journal/paper.RI-01.jsonl` and is never counted here. Every rule below is fixed before the first counted trade. Changes
-require a new contract id and a fresh paper count. No order is ever placed by this repo.
+Frozen 2026-10-23. Supersedes RI-03 (`prereg/RI-03.md`, the named-person sensor; its book is `journal/paper.RI-03.jsonl`, 4 closes,
+never counted here), RI-02 and RI-01. Every rule below is fixed before the first counted trade. Changes require a new contract id
+and a fresh paper count. No order is ever placed by this repo. Ruled in `decisions/2026-10-23-ri04-duval-loop.md`.
 
-## What RI-02 and RI-03 change
+## What RI-04 is
 
-The loss is cut smaller and sooner. RI-01 lost 0.325 SOL on every stop (−25 % stop, booked −30 %, 2.5 % fees), which is above
-S1's own bar of mean loss < 0.3 SOL, and its only clock was 24 h: its one close sat 4 h 15 min before it stopped. RI-02 stops at
-−10 % (0.175 SOL a stop), marks open positions every 5 s instead of 30 s, and closes at 15 minutes anything that is not above
-its entry. RI-03 (ruled in `decisions/2026-10-03-ri02-holes.md`) adds the rule this leg's first lesson left: only a touch that shows intent may
-enter. Both RI-01 entries were coincidences, a capitalised word in an endorsement and a transfer nobody asked for. It also books a stop
-at the mark when the mark is already below −15 %. Feeds, resolver, screen and gates are unchanged. Amendments 1 to 3 below were made
-under RI-01 and carry over.
+The operator stopped the named-person sensor on 2026-10-23 and named the next strategy from the behavioral model of Jack Duval's
+wallet (`out/jd_wallet/REPORT.md`, 17,270 closed positions, 2025-04-22 to 2026-10-23):
+
+> He decides on freshness and narrative, not price: fresh launch, matches the hour's news, under $10K, in within 30 seconds
+> with 1-2 SOL, out within a minute.
+
+The numbers the paragraph leaves open are his own medians: winners +20 % and losers −19 %, both reached in about a minute;
+62 % of his entries under 30 s old; median entry market cap $8.4K; median overlap of open positions 1, p90 4.
 
 ## Hypothesis
 
-A coin moves by an order of magnitude when a named person publicly touches it. The touch is observable within
-seconds (a post, a wallet buy or receipt, a supply gift). Coins that already have breadth (many distinct buyers,
-real liquidity, no full-curve dev bundle) are the ones that survive the touch. Buying the touch on breadth-screened
-coins, with loss-first exits, has positive expectancy after fees. Source: `~/onchain-savage/report`.
+A fresh pump.fun launch whose name is taken from a headline of the last hour, bought under $10K market cap within 30 seconds of
+creation and sold within a minute, has positive expectancy after fees and the book's own price impact. The wallet that ran this loop
+made +1,055 SOL on 10,316 positions over nine months before it stopped running it (sizing up, averaging down, holding losers).
 
-## Feeds (what counts as a touch)
+## Feeds
 
 | Feed | Source | Latency | Status |
 |---|---|---|---|
-| `truth` | truthsocial.com public API, statuses of roster accounts | 20 s poll | live, keyless |
-| `wallet` | Solana websocket `logsSubscribe` mentions on roster wallets, tx decoded | ~2 s | live, keyless |
-| `gift` | same stream; incoming token transfer to a roster wallet ≥ 1% of supply | ~2 s | live, keyless |
-| `profile` | DexScreener latest token profiles / boosts whose social link is a roster handle | 30 s poll | live, keyless |
-| `x` | X API v2 user timelines of roster handles (`X_BEARER` env) | 60 s poll | dormant until a key exists |
+| `pump` | PumpPortal `subscribeNewToken` websocket: mint, name, symbol, bonding curve key, virtual reserves at creation | push, ~1 s | live, keyless |
+| `news` | Google News RSS: top stories plus WORLD, NATION, BUSINESS, TECHNOLOGY, ENTERTAINMENT, SPORTS, SCIENCE, HEALTH | 60 s poll | live, keyless |
+| `sol_usd` | DexScreener wrapped-SOL price | 60 s poll | live, keyless |
 
-Follows on X are not observable without the API; they are logged as a known gap, not approximated.
-Platform bots (the stonk.fun buyback wallet) are not subscribed: their touches are a flywheel, not a person, and
-they flood the public RPC. House tokens are a stonk.fun pools-API question, outside this contract.
+X trends and X search are not observable (the key answers 402); if his narratives come from there and not from the headlines,
+the news feed is the gap, logged as a known one and not approximated.
 
-## Resolver
+## The hour's news
 
-From a post: `$TICKER` tokens, base58 mints, and 1–3 word capitalised n-grams. Each is searched on DexScreener
-(solana only). A candidate is accepted only if the token **name or symbol equals the phrase exactly**
-(case-insensitive), the pair existed **before** the event, and liquidity ≥ `LIQ_FLOOR`. Near-misses are logged
-and never traded. From a wallet event the mint is known.
+A title published within the last 60 minutes contributes its proper nouns: capitalised words of 4+ letters, all-caps words of 3+
+letters, and adjacent pairs of them. A stop list removes sentence starters, weekdays, months, outlet names and generic news and
+market words (`src/duval.py STOP_WORDS`). The term set is rebuilt every minute and saved to `state/news.json`.
 
-## Breadth screen (all must pass, measured at event time)
+### Amendment 0 (2026-10-23 15:10Z, before the first counted trade; the engine had seen 10 launches and matched none)
 
-- liquidity ≥ $20,000 (`LIQ_FLOOR`)
-- pair age ≥ 10 min (never a launch snipe)
-- buys in the last hour ≥ 50 (`BUYERS_H1`) and buys ≥ sells in the last hour
-- if the mint is a pump.fun token and its curve history is complete (< 1,000 signatures): the create transaction
-  deposited < 60 SOL (rejects the full-curve dev bundle cohort, 2.6 % survival)
-- market cap ≤ $250M (no SOL/USDC-class assets)
+The first fetch showed the top and section feeds carry titles that are hours old: 8 titles and 21 terms inside the hour, half of them
+sentence openers ("Beyond", "Uncovering"). Google News search with `when:1h` returns about 100 titles each, all inside the hour.
+The news feed is therefore six `when:1h` searches (news, breaking, world, crypto/bitcoin/solana/memecoin, celebrity/viral/trending,
+elon/trump/musk) plus the top and section feeds, all still filtered to the last 60 minutes; and a title's first word counts on its own
+only when it also appears capitalised mid-title somewhere in the window (or is all caps). The 60-minute window, the match rule and
+every other rule are unchanged. No trade had been counted.
 
-## Paper trade (size 1 SOL, modelled fees 2.5 % round trip)
+### Amendment 1 (2026-10-23 15:15Z, before the first counted trade)
 
-- intent: a screen pass enters only if the person's own post carried the coin's `$TICKER` or mint, or a roster wallet signed the buy.
-  Capitalised names, receipts, gifts and profile links are screened and shadowed, never traded
-- entry mark = DexScreener `priceUsd` at the first poll after the screen passes (never earlier)
-- open positions are marked every 5 s
-- hard stop −10 %, booked at −15 % (stops fill one print below: doctrine), or at the mark itself when the mark is lower
-- fast stop: at the first mark 15 min or more after entry, a position at or below its entry price is closed whole at mark
-- take half at +100 %; remainder trails with 30 % give-back from peak
-- time stop 24 h at mark
-- one position per mint; at most 5 open
+Amendment 0's feed produced three entries in its first minute, all wrong in ways the rules above did not foresee: the terms "boss",
+"real" and "ground" matched (Title Case headlines make every word look like a name), and two launches whose mints do not end in
+`pump` showed a +2047 % "take" one mark after entry because their on-chain curve carries 722 virtual SOL while the feed's message said
+30: the fill was computed on the message and the mark on the chain. Those three rows live in `journal/paper.RI-04-amend0.jsonl` and
+are never counted; the book and `journal/paper.jsonl` start again from here. Three rules added, none of them an exit or a size:
 
-## Loss-first gates (checked daily by `ops/readout.py`)
+- the mint must end in `pump` (a pump.fun mint); others are screen fails
+- the curve is read on chain at decision and the fill is computed on those reserves; if the account is unreadable, complete, or its
+  virtual SOL is outside 0.5-2x the feed's figure, the launch is a screen fail ("non-standard curve")
+- in a Title Case headline a word counts as a name only if it also appears capitalised mid-title in a sentence-case headline of
+  the window (or is all caps); a stop list of common English words applies to every headline
+
+## Entry (all at the create message, measured on the curve state it carries)
+
+- the launch's name carries a term as a whole word, or its symbol equals a term, or a term of 6+ letters or a pair runs inside the name
+- pool is plain `pump`; mayhem-mode launches are logged and skipped
+- market cap on the curve (virtual SOL / virtual tokens × 1e9 × SOL/USD) < $10,000
+- decision inside 30 s of the message (the message is the earliest observable moment; the create transaction's block time is
+  fetched after entry and recorded on the close as `created`, so age at entry is a measured number, not a rule)
+- size 1.5 SOL (the midpoint of "1-2 SOL"); the fill is the curve's constant product on its virtual reserves after the 1 % pump fee
+  and a 0.001 SOL transaction fee, so the entry price carries the book's own impact
+- at most 3 open; one entry per mint, ever (no re-entry)
+
+Every launch is written to `journal/launches.jsonl` (one line, with its matched terms). Only news-matched launches are events in
+`journal/events.jsonl`; the ones over $10K or outside the pool rule are screen fails there, so the pass rate is the share of
+news-matched launches that were cheap enough.
+
+## Exit (whole position, at the curve's own sell price after fees, marked every 2 s from the bonding-curve account over RPC)
+
+- take at +20 %
+- stop at −20 %, booked at the mark (a mark below −20 % books what the mark says)
+- time at 60 s after entry, whatever the mark
+- if the curve reports complete (migrated) before any of the above, the position closes at the last mark as `complete`
+
+The mark is what selling the whole position into the curve would return after fees, so the book pays impact on both sides.
+There is no partial take, no trail and no 24 h clock: the paragraph says out within a minute.
+
+## Loss-first gates (checked daily by `ops/readout.py`; bars scale with the size, 1.5 × the 1 SOL bars of RI-03)
 
 | Gate | Rule |
 |---|---|
 | G1 | 10 consecutive losers → **KILL** |
-| G2 | realised drawdown > 8 SOL → **KILL** |
+| G2 | realised drawdown > 12 SOL → **KILL** |
 | G3 | after 40 closed trades, win rate < 25 % → **KILL** |
 | G4 | after 40 closed trades, mean net ≤ 0 → **KILL** |
-| S1 | after 40 closed trades, mean net > 0 and mean loss < 0.3 SOL and G1–G4 clear → **SURVIVES ON PAPER** |
+| S1 | after 40 closed trades, mean net > 0 and mean loss < 0.45 SOL and G1–G4 clear → **SURVIVES ON PAPER** |
 
-Give-up date 2026-12-31 if S1 is not reached. No capital is proposed before S1.
+Give-up date 2026-11-30 if S1 is not reached. No capital is proposed before S1. A verdict at 40 closes is a verdict on the loop as
+written; the count keeps running to 200 closes so the journal can split it by age at entry, matched term and market cap.
 
-## Amendment 1 (2026-10-02, before the first counted trade)
+## The Foresight Journal (unchanged from RI-03, Amendment 3)
 
-The first three live events showed two noise sources. (a) A lone capitalised word inside a sentence ("Why would the
-State…") matched a token named "State"; single-word phrases now count only when written in capitals or as a
-`$ticker`. (b) The ANSEM fee wallet's routine fee claims (4 tokens) fired as receipts; a receipt is a touch only at
-≥ 0.1 % of supply, and ≥ 1 % remains a gift. Both events are in `journal/events.jsonl`, screen-rejected, uncounted.
-
-## Amendment 2 (2026-10-02): feeds go push, and the roster grows itself
-
-- X posts arrive by filtered stream (one `from:` rule over the roster), not a 60 s poll. Truth Social polls every 5 s.
-  Wallet decodes start 0.5 s after the notification. Every event records source-to-seen, resolve and decision latency.
-- `ops/discover.py` runs daily. Sources: @mentions in the recap accounts' posts (X recent search) and X handles that
-  DexScreener token profiles link to on ≥ 3 different tokens. A handle is auto-added when the X account has
-  ≥ 500,000 followers, is ≥ 1 year old, and its name/bio does not read as a token account; otherwise it is parked in
-  `prereg/CANDIDATES.json` for the operator. Roster size is capped at 28 handles (one 512-character stream rule).
-  Additions widen coverage only; no gate changes. Every change is logged in `journal/roster.jsonl`.
-
-## Amendment 3 (2026-10-03): The Foresight Journal, observation only
-
-- `ops/journal.py` records, before the outcome, what the operator expects this leg to do (`forecast/predictions.jsonl`), the beliefs those
-  forecasts rest on (`forecast/beliefs.jsonl`), the outcomes scored from `journal/` (`forecast/scores.jsonl`) and what each miss taught
-  (`forecast/lessons.jsonl`). The files are append-only and hash-chained.
-- Every screened touch, passed or rejected, is shadowed for 24 h under this contract's own exits at 5-minute marks
-  (`journal/shadow.jsonl`). Shadows are never counted as trades and feed no gate.
-- No rule above changes. Lessons become rules only in a later contract id.
+Forecasts are written before the first counted trade: the market forecasts first (`mk_touches` here means news-matched launches a
+day, `mk_pass_rate` the share under $10K), then the leg forecasts resting on them. Every screened launch is shadowed for 24 h under
+RI-03's exits by `ops/journal.py tick` as before, never counted. Lessons become rules only in a later contract id.
 
 ## Known answer
 
-`tests/test_known_answer.py` pins the resolver and gates on fixtures from the September ledger
-(`prereg/KNOWN_ANSWER.json`). Those fixtures are spent: they shape the rules and are never counted as trades.
+`tests/test_known_answer.py` pins RI-01..03's resolver and gates and still runs; nothing in it counts here. The RI-04 engine is
+`src/duval.py`; its curve arithmetic is checked in `tests/test_duval.py`.
