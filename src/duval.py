@@ -32,8 +32,14 @@ GN = "https://news.google.com/rss"
 LOC = "hl=en-US&gl=US&ceid=US:en"
 # the search feeds with when:1h return ~100 titles each, all under an hour old; the top and section feeds lag by hours and add a few
 NEWS_FEEDS = [f"{GN}/search?q={q}+when%3A1h&{LOC}" for q in ("news", "breaking", "world", "crypto+OR+bitcoin+OR+solana+OR+memecoin",
-                                                             "celebrity+OR+viral+OR+trending", "elon+OR+trump+OR+musk")] \
+                                                             "celebrity+OR+viral+OR+trending", "elon+OR+trump+OR+musk",
+                                                             # Amendment 4: ten topic searches, the rate lever measured on 2026-10-23
+                                                             "politics", "sports", "entertainment", "technology", "business", "science", "gaming",
+                                                             "meme+OR+memes", "tiktok+OR+youtube+OR+streamer", "nfl+OR+nba+OR+mlb+OR+ufc")] \
     + [f"{GN}?{LOC}"] + [f"{GN}/headlines/section/topic/{t}?{LOC}" for t in ("WORLD", "NATION", "BUSINESS", "TECHNOLOGY", "ENTERTAINMENT", "SPORTS")]
+TRENDS = "https://trends.google.com/trending/rss?geo=US"     # trending searches of the hour: each title is a term on its own
+MIN_TITLES = 2               # a single-word term must recur in this many distinct headlines (pairs and trending titles always count)
+SUBSTR_MIN = 8               # a single term runs inside a squashed name only at this length ('champi' inside 'championship' was not news)
 NEWS_WINDOW_S = 3600
 NEWS_POLL_S = 60
 SOL_POLL_S = 60
@@ -41,7 +47,7 @@ MCAP_MAX_USD = 10_000
 ENTRY_WINDOW_S = 30
 SIZE_SOL = 1.5
 TAKE = 0.20
-STOP = -0.20
+STOP = -0.05                 # Amendment 4: the tightest stop the tape allows: fees (-2.1 %) plus three points; no +20 % winner dipped below -4.5 % first
 HOLD_S = 60
 MARK_EVERY = 2
 MAX_OPEN = 3
@@ -87,6 +93,9 @@ final next last back game games play player players team teams win wins won lost
 water air earth gold silver king queen boss food pull rewards series ground job jobs work cash bank city town road car cars open close end
 start rise fall drop surge crash boom war peace baby kid kids girl boy dog cat man men woman women guy guys dad mom son daughter friend
 friends family fans fan show shows movie film music song songs book books story stories news photo photos video videos post posts
+track black white red blue green stream cloud ocean department complex flag blade monitor justice justice department
+sol solana bitcoin btc eth ethereum crypto cryptocurrency token tokens coin coins pump pumpfun memecoin memecoins meme memes nft nfts
+defi blockchain dogecoin doge shiba pepe altcoin altcoins
 """.split())
 DIRECTION = set("east west north south middle central northern southern eastern western".split())
 PAIR_STOP = STOP_WORDS - DIRECTION
@@ -179,6 +188,29 @@ def fetch_news():
             terms.setdefault(term, [])
             if title not in terms[term]:
                 terms[term].append(title)
+    # quality: a lone word is a name of the hour only if two headlines carry it; pairs stand on their own
+    terms = {k: v for k, v in terms.items() if " " in k or len(v) >= MIN_TITLES}
+    # the trending searches: the search itself is a term, and so are the names in it and in its news titles
+    try:
+        req = urllib.request.Request(TRENDS, headers=C.UA)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            raw = r.read().decode("utf-8", "ignore")
+        for it in re.findall(r"<item>(.*?)</item>", raw, re.S):
+            t = re.search(r"<title>(.*?)</title>", it, re.S)
+            if not t:
+                continue
+            title = html.unescape(re.sub(r"<!\[CDATA\[|\]\]>", "", t.group(1))).strip()
+            tag = "trend: " + title
+            lt = title.lower()
+            if lt not in STOP_WORDS and len(lt) >= 3:
+                terms.setdefault(lt, []).append(tag)
+            for n in [title] + [html.unescape(x) for x in re.findall(r"<ht:news_item_title>(.*?)</ht:news_item_title>", it, re.S)]:
+                for term in _terms(n.title() if n == title else n, mid_caps | {w.lower() for w in TOKEN_RE.findall(title)}):
+                    terms.setdefault(term, [])
+                    if tag not in terms[term]:
+                        terms[term].append(tag)
+    except Exception as e:
+        err("trends", e)
     return terms
 
 
@@ -192,7 +224,7 @@ def match(name, symbol, terms):
         if " " in term:
             if term.replace(" ", "") in squashed or term == (name or "").lower():
                 hits.append(term)
-        elif term in words or term == sym or (len(term) >= 6 and term in squashed):
+        elif term in words or term == sym or (len(term) >= SUBSTR_MIN and term in squashed):
             hits.append(term)
     return sorted(hits, key=len, reverse=True)
 
@@ -361,6 +393,7 @@ class Duval:
                 if terms:
                     self.terms = terms
                     C.save_json(NEWS, {"ts": C.iso(), "terms": terms})
+                    C.append(C.path("journal", "news", time.strftime("%Y-%m-%d", time.gmtime()) + ".jsonl"), {"terms": sorted(terms)})   # the hour's terms, minute by minute, so matchers can be replayed
             except Exception as e:
                 err("news", e)
             await asyncio.sleep(NEWS_POLL_S)

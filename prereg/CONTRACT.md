@@ -82,6 +82,21 @@ product within 5 %), so a bundle that lands 70 SOL in the create block is not a 
 headlines capitalise ("One", "Now", "Money", "Core") were added to the stop list; "Hunter Biden", "Melania" and "Elon Musk" remain
 names. No exit, size or window changes.
 
+### Amendment 4 (2026-10-23 17:00Z, before the first counted trade; the operator asked for the tightest stop and for the rate)
+
+**The stop is −5 %.** Measured on 177 launch paths: every position opens at −2.1 % (fees and its own impact); of the 17 launches that
+reached +20 % inside 60 s, none dipped below −4.5 % first; in the stop sweep (−3 % to −30 %) −5 % had the best mean net and profit
+factor and cut no winner. −3 % and −4 % each cut one. The exit is therefore +20 % / −5 % / 60 s; the −3 %, −8 %, −10 % and −20 %
+forks stay in the population.
+
+**The rate.** The limiting-factor line had divided by calendar days; it now reads entries over the hours the paths cover. Measured on
+669 pump launches in 55 minutes (17,700 a day): the 1-hour feed matched 2.0 %; ten topic searches (politics, sports, entertainment,
+technology, business, science, gaming, memes, creators, leagues) and Google Trends' trending searches took it to 4.8 % with a quality
+rule, about 800 entries a day. The quality rule: a lone word is a term only if two distinct headlines carry it (pairs and trending titles
+always count); a term runs inside a squashed name only at 8+ letters ("champi" inside "Championship" was not news); evergreen crypto
+words (sol, solana, bitcoin, pump, memecoin …) and colours and generic nouns never count. The hour's terms are now written minute by
+minute to `journal/news/<day>.jsonl` so any matcher can be replayed against the launch names. Window, cap, size, take and hold unchanged.
+
 ## Entry (all at the create message, measured on the curve state it carries)
 
 - the launch's name carries a term as a whole word, or its symbol equals a term, or a term of 6+ letters or a pair runs inside the name

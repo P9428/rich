@@ -41,8 +41,10 @@ VARIANTS = [
     {"name": "take +10 %", "take": 0.10},
     {"name": "take +30 %", "take": 0.30},
     {"name": "take +50 %", "take": 0.50},
+    {"name": "stop -3 %", "stop": -0.03},
+    {"name": "stop -8 %", "stop": -0.08},
     {"name": "stop -10 %", "stop": -0.10},
-    {"name": "stop -30 %", "stop": -0.30},
+    {"name": "stop -20 %", "stop": -0.20},
     {"name": "hold 30 s", "hold": 30},
     {"name": "hold 120 s", "hold": 120},
     {"name": "hold 180 s", "hold": 180},
@@ -169,9 +171,15 @@ def diff_ci(a, b, k=400):
     return ds[int(0.05 * k)], ds[int(0.95 * k)]
 
 
+def span_days(paths):
+    ts = [time.mktime(time.strptime(p["ts"][:19], "%Y-%m-%dT%H:%M:%S")) for p in paths]
+    return max(1 / 24, (max(ts) - min(ts)) / 86400) if ts else 1 / 24
+
+
 def limiting_factor(paths, ctrl, ctrl_book, live, days):
-    """The one stage to work on, read in order: the rate of entries, then the edge, then the fill, then the exits."""
-    per_day = len(ctrl) / max(1, days)
+    """The one stage to work on, read in order: the rate of entries, then the edge, then the fill, then the exits.
+    The rate is read over the hours the paths actually cover, not calendar days (an hour of paths is not a day)."""
+    per_day = ctrl["n"] / span_days(paths)
     if per_day < 40:
         return f"RATE: the contract enters {per_day:.0f} a day on the paths; under 40 a day the leg cannot reach a verdict in a week. The news window or the match rule is the constraint, not the exit."
     if ctrl["n"] and ctrl["mean"] <= 0:
