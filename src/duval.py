@@ -48,6 +48,9 @@ MAX_OPEN = 3
 PUMP_FEE = 0.01
 TX_FEE_SOL = 0.001
 MIN_TERM = 4
+PATH_S = 180                 # every launch is marked on chain for this long: the environment the population replays against
+PATH_MARK_S = 2
+RPC_BATCH = 100              # getMultipleAccounts ceiling
 WSOL = "So11111111111111111111111111111111111111112"
 
 EVENTS = C.path("journal", "events.jsonl")
@@ -79,6 +82,11 @@ nearly need needs never next nothing often only onto open other others over part
 says sees seen sends several should shows since some something soon still such take takes taking tells than their them then they thing things
 think this those though three through time times told took toward turns under until upon very wants warns watch ways well went were what
 where whether which while will with within without would years your
+one two three four five six seven eight nine ten now money core day days night home house life love big top best free real true full
+final next last back game games play player players team teams win wins won lost loss deal record super star stars power light dark fire
+water air earth gold silver king queen boss food pull rewards series ground job jobs work cash bank city town road car cars open close end
+start rise fall drop surge crash boom war peace baby kid kids girl boy dog cat man men woman women guy guys dad mom son daughter friend
+friends family fans fan show shows movie film music song songs book books story stories news photo photos video videos post posts
 """.split())
 DIRECTION = set("east west north south middle central northern southern eastern western".split())
 PAIR_STOP = STOP_WORDS - DIRECTION
@@ -207,6 +215,19 @@ def sell(v_sol, v_tok, tokens):
     return max(0.0, gross * (1 - PUMP_FEE) - TX_FEE_SOL)
 
 
+def net_in(sol):
+    return sol * (1 - PUMP_FEE) - TX_FEE_SOL
+
+
+def mark_value(v_sol, v_tok, tokens, sol_in):
+    """What the position would fetch now. The chain state was observed without the book's buy, so the book's own SOL is added back
+    along the curve's constant product before selling into it: on a curve nobody else touched this returns the buy less fees, not the
+    buy less fees and impact twice (the error that marked a flat curve -11 % on 2026-10-23)."""
+    k = v_sol * v_tok
+    vs = v_sol + net_in(sol_in)
+    return sell(vs, k / vs, tokens)
+
+
 def decode_curve(b64):
     raw = base64.b64decode(b64)
     v_tok, v_sol, r_tok, r_sol, supply = struct.unpack_from("<QQQQQ", raw, 8)
@@ -214,13 +235,22 @@ def decode_curve(b64):
 
 
 def rpc_curves(keys):
-    d = C.http_json(C.RPC, json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getMultipleAccounts",
-                                       "params": [keys, {"encoding": "base64", "commitment": "processed"}]}).encode(), tries=2, timeout=15)
     out = {}
-    for k, v in zip(keys, (d.get("result") or {}).get("value") or []):
-        if v and v.get("data"):
-            out[k] = decode_curve(v["data"][0])
+    for i in range(0, len(keys), RPC_BATCH):
+        chunk = keys[i:i + RPC_BATCH]
+        d = C.http_json(C.RPC, json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getMultipleAccounts",
+                                           "params": [chunk, {"encoding": "base64", "commitment": "processed"}]}).encode(), tries=2, timeout=15)
+        for k, v in zip(chunk, (d.get("result") or {}).get("value") or []):
+            if v and v.get("data"):
+                try:
+                    out[k] = decode_curve(v["data"][0])
+                except Exception:
+                    pass
     return out
+
+
+def paths_file(t=None):
+    return C.path("journal", "paths", time.strftime("%Y-%m-%d", time.gmtime(t or time.time())) + ".jsonl")
 
 
 def block_time(sig):
@@ -274,7 +304,7 @@ class Book:
             c = curves.get(p.curve)
             if not c:
                 continue
-            out = sell(c["v_sol"], c["v_tok"], p.tokens)
+            out = mark_value(c["v_sol"], c["v_tok"], p.tokens, SIZE_SOL)
             pct = out / SIZE_SOL - 1
             p.marks += 1
             p.last_pct = pct
@@ -310,6 +340,9 @@ class Duval:
         self.launches = 0
         self.matched = 0
         self.last_launch = None
+        self.tracked = {}            # curve key -> the launch's path in progress (every launch, matched or not)
+        self.paths_written = 0
+        self.rpc_errs = 0
         self.event_ids = set(e["id"] for e in C.read_jsonl(EVENTS) if str(e.get("id", "")).startswith("pump:"))
 
     async def run(self):
@@ -317,7 +350,8 @@ class Duval:
             asyncio.create_task(coro)
         while True:
             C.save_json(HEART, {"pid": os.getpid(), "ts": C.iso(), "open": len(self.book.open), "events": self.launches, "matched": self.matched,
-                                "news_terms": len(self.terms), "sol_usd": self.sol_usd, "last_launch": self.last_launch, "leg": "RI-04"})
+                                "news_terms": len(self.terms), "sol_usd": self.sol_usd, "last_launch": self.last_launch, "leg": "RI-04",
+                                "tracked": len(self.tracked), "paths": self.paths_written, "rpc_errs": self.rpc_errs})
             await asyncio.sleep(5)
 
     async def news_loop(self):
@@ -369,6 +403,10 @@ class Duval:
         C.append(LAUNCHES, {"ts": C.iso(t), "mint": mint, "name": name[:60], "symbol": sym[:20], "mcap_usd": round(mcap_usd) if mcap_usd else None,
                             "init_sol": m.get("solAmount"), "pool": m.get("pool"), "mayhem": bool(m.get("is_mayhem_mode")), "match": hits[:4],
                             "curve": m.get("bondingCurveKey"), "v_sol": round(v_sol, 3)})
+        if m.get("bondingCurveKey") and v_sol and v_tok:
+            self.tracked[m["bondingCurveKey"]] = {"mint": mint, "name": name[:60], "sym": sym[:20], "t0": t, "v0": [v_sol, v_tok],
+                                                  "init_sol": m.get("solAmount"), "pool": m.get("pool"), "mayhem": bool(m.get("is_mayhem_mode")),
+                                                  "match": hits[:4], "mcap0_usd": round(mcap_usd) if mcap_usd else None, "marks": [], "complete": None}
         if not hits:
             return
         self.matched += 1
@@ -449,19 +487,41 @@ class Duval:
                 self.book.save()
 
     async def mark_loop(self):
+        """Every 2 s: one RPC pass over the open positions and every launch under PATH_S old. The book exits on its marks; each
+        launch's marks are kept and written out when its window closes, so the population can replay any rule against the tape."""
         while True:
             t0 = time.time()
-            if self.book.open:
+            keys = list({p.curve for p in self.book.open} | set(self.tracked))
+            if keys:
                 try:
-                    curves = await asyncio.to_thread(rpc_curves, [p.curve for p in self.book.open])
+                    curves = await asyncio.to_thread(rpc_curves, keys)
+                    now = time.time()
                     with self.lock:
-                        closed = self.book.mark_all(curves, time.time())
+                        closed = self.book.mark_all(curves, now)
                     for rec in closed:
                         alert(f"PAPER CLOSE {rec['symbol']} net {rec['net_sol']:+.3f} SOL after {rec['held_s']}s ({rec['exits'][-1]['why']}, "
                               f"peak {rec['peak_pct']:+.0%} trough {rec['trough_pct']:+.0%}, {rec['marks']} marks)")
+                    self._track(curves, now)
                 except Exception as e:
+                    self.rpc_errs += 1
                     err("mark", e)
             await asyncio.sleep(max(0.2, MARK_EVERY - (time.time() - t0)))
+
+    def _track(self, curves, now):
+        done = []
+        for key, tr in self.tracked.items():
+            c = curves.get(key)
+            if c:
+                tr["marks"].append([round(now - tr["t0"], 1), round(c["v_sol"], 4), int(c["v_tok"]), round(c["r_sol"], 4)])
+                if c["complete"] and tr["complete"] is None:
+                    tr["complete"] = round(now - tr["t0"], 1)
+            if now - tr["t0"] >= PATH_S or tr["complete"] is not None:
+                done.append(key)
+        for key in done:
+            tr = self.tracked.pop(key)
+            C.append(paths_file(tr["t0"]), {"ts": C.iso(tr["t0"]), "curve": key, **{k: tr[k] for k in ("mint", "name", "sym", "v0", "init_sol", "pool",
+                                                                                            "mayhem", "match", "mcap0_usd", "complete", "marks")}})
+            self.paths_written += 1
 
 
 if __name__ == "__main__":

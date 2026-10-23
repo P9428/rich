@@ -15,6 +15,8 @@ $discArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolic
 Register-ScheduledTask -TaskName "rich - DISCOVER" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $discArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 05:00) -Settings $settings -Force | Out-Null
 $jrnArgs = "//B //Nologo `"$vbs`" `"python`" `"$root\ops\journal.py`" tick"
 Register-ScheduledTask -TaskName "rich - JOURNAL" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $jrnArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)) -Settings $settings -Force | Out-Null
+$popArgs = "//B //Nologo `"$vbs`" `"python`" `"$root\ops\population.py`" --days 3"
+Register-ScheduledTask -TaskName "rich - POPULATION" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $popArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 05:45) -Settings $settings -Force | Out-Null
 $digArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"$root\ops\digest.ps1`""
 Register-ScheduledTask -TaskName "rich - FORESIGHT" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $digArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 06:05) -Settings $settings -Force | Out-Null
 Get-ScheduledTask -TaskName "rich - *" | ForEach-Object { "{0,-22} {1}" -f $_.TaskName, $_.State }

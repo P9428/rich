@@ -61,6 +61,27 @@ are never counted; the book and `journal/paper.jsonl` start again from here. Thr
 - in a Title Case headline a word counts as a name only if it also appears capitalised mid-title in a sentence-case headline of
   the window (or is all caps); a stop list of common English words applies to every headline
 
+### Amendment 2 (2026-10-23 16:00Z, observation only; no rule above changes)
+
+The environment and the population (`docs/DUVAL-RSI.md`). The engine marks every launch on chain every 2 s for 180 s, matched or
+not, and writes the path to `journal/paths/<day>.jsonl`. `ops/population.py` replays the contract (the control) and nineteen
+one-variable forks of it against those paths with the same fills and fees, names the loop's limiting factor, tests matched against
+unmatched launches, and lists forks that beat the control on each of the last three forward days with at least 50 trades a day. None
+of it trades or counts; a listed fork is a candidate for a later contract id, ruled through RI. The live book and the control replay
+should agree; a gap between them is a measurement lesson owed to the journal.
+
+### Amendment 3 (2026-10-23 16:30Z, a measurement correction; the twelve closes booked under it are quarantined)
+
+The population's first replay caught the mark: it sold the position into the chain state, which does not contain the book's own buy,
+so a curve nobody else touched marked −11 % (fees plus the book's impact paid twice) instead of −2 % (fees). Nine of the twelve live
+closes were 60-second time exits at exactly that −11 %, and the three stops fired early for the same reason. The mark now adds the
+book's own net SOL back along the constant product before selling (`mark_value` in `src/duval.py`); on an untouched curve it returns
+the buy less fees. The twelve closes (15:22Z to 15:43Z) are in `journal/paper.RI-04-amend3.jsonl` and never count; the book starts
+again. The replay applies the same on-chain reserve band the live book applies at decision (0.5-2× the feed's virtual SOL, constant
+product within 5 %), so a bundle that lands 70 SOL in the create block is not a paper fill at the message price. Common nouns that
+headlines capitalise ("One", "Now", "Money", "Core") were added to the stop list; "Hunter Biden", "Melania" and "Elon Musk" remain
+names. No exit, size or window changes.
+
 ## Entry (all at the create message, measured on the curve state it carries)
 
 - the launch's name carries a term as a whole word, or its symbol equals a term, or a term of 6+ letters or a pair runs inside the name
