@@ -96,6 +96,7 @@ friends family fans fan show shows movie film music song songs book books story 
 track black white red blue green stream cloud ocean department complex flag blade monitor justice justice department
 sol solana bitcoin btc eth ethereum crypto cryptocurrency token tokens coin coins pump pumpfun memecoin memecoins meme memes nft nfts
 defi blockchain dogecoin doge shiba pepe altcoin altcoins
+mil race races office support technology tech grade class school test tests vote votes voting poll polls election elections
 """.split())
 DIRECTION = set("east west north south middle central northern southern eastern western".split())
 PAIR_STOP = STOP_WORDS - DIRECTION
