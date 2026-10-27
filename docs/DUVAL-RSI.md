@@ -4,6 +4,9 @@ Three interviews (Noam Brown on multi-agent and RSI; Elon Musk on limiting facto
 Schulman and Charlie O'Neill on RSI, RL and data) applied to contract RI-04. The overlaps are the spec; the build is what the three of
 them would build from first principles. Nothing here changes a counted trade; the count is the contract's and only RI changes it.
 
+Full transcripts of the three Dwarkesh Patel episodes: `docs/transcripts/dwarkesh-noam-brown.txt`,
+`docs/transcripts/dwarkesh-elon-musk.txt`, `docs/transcripts/dwarkesh-millidge-schulman-oneill.txt`.
+
 ## The seven overlaps
 
 | # | Brown | Musk | Millidge / Schulman / O'Neill | Rule for the loop |
