@@ -1,0 +1,225 @@
+{
+ "root": "b5dc650c57f92460d8732860eaf93ba87af5a22f137f5a31aa505a644a2b828a",
+ "size": 19,
+ "options": [
+  {
+   "id": "A-replay-only",
+   "do": "Keep RI-05 as a replayed hypothesis book: ops/five_replay.py runs in the morning command and writes out/five.md; the Shadow class stays in src/five.py uncalled; docs/RI-05.md records the rules as code, the constants and the verdict; the one patch owed is the stop stage, tested on the replay before any other; the creator's-buy ordering (I03) becomes a Foresight Journal forecast on RI-04's own closes, not a rule",
+   "label": "INFERENCE",
+   "basis": "F01+F05+F06+I01+I02+I03",
+   "asymmetry": "up: every rule keeps being scored nightly on the full tape with no new code in the counted engine, and the first positive replay is the gate for going live; down: no real-time cadence is measured, and a loop that only ever runs on 180 s paths cannot test 'ride to the catalyst'",
+   "fails_if": "the replay's 180 s window is the reason the loop loses (the free trade and the catalyst ride need minutes, not seconds) and no replay can ever show it",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a scored test of each of the ten 5 % items on RI-04's own launches, rerunnable on every new day of tape, plus the engine code ready to wire when the tape says yes",
+   "ownership": "owned",
+   "system_effect": "the counted engine, the readout, the guard and the Foresight Journal are untouched; one more report in the morning run",
+   "veto": ""
+  },
+  {
+   "id": "B-wire-shadow-live",
+   "do": "Call Shadow from src/duval.py on every mark pass, writing journal/paper.RI-05.jsonl beside RI-04's book and state/five.json; the readout ignores it",
+   "label": "HYPOTHESIS",
+   "basis": "I02",
+   "asymmetry": "up: real-time cadence and marks past 180 s for positions still open; down: a loop the tape already scores at PF 0.34 gets a second, slower measurement, inside the one process that counts",
+   "fails_if": "a bug in the shadow path stalls or crashes the counted engine (the 2026-10-09 failure mode), or the live shadow and the replay disagree for reasons neither can explain",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a second RI-05 book that agrees with the replay or does not",
+   "ownership": "owned",
+   "system_effect": "a new write path and a new failure mode in src/duval.py; the guard would have to watch two books",
+   "veto": ""
+  },
+  {
+   "id": "C-drop",
+   "do": "Delete src/five.py and ops/five_replay.py; keep the two documents as reading",
+   "label": "HYPOTHESIS",
+   "basis": "F01",
+   "asymmetry": "up: nothing to maintain; down: the gate read and the arrivals read, which held direction, go with the rules that failed, and the test cannot be rerun on new tape",
+   "fails_if": "the meta gate or the creator's-buy signal would have improved RI-04 and nobody can show it because the scorer is gone",
+   "survivable": true,
+   "reversible": false,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "nothing",
+   "ownership": "owned",
+   "system_effect": "two documents point at code that no longer exists",
+   "veto": ""
+  }
+ ],
+ "rows": [
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F01",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "On the tape of 2026-10-23..27 (61,049 launches, 28,189 plain pump) RI-05 as coded made 199 trades, 10 % win, -4.8 SOL, PF 0.34; RI-04's control on the same launches with the same curve arithmetic and fees made 1,134 trades, 31 % win, +164.3 SOL, PF 4.50",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F02",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "L2 runs backwards on this tape: the control's narrative class (the only class the 5 % trades) is its worst, 776 trades, 20 % win, +0.083 SOL mean; the three banned classes are its best: dev 178 trades 59 % +0.270, tech 146 trades 51 % +0.288, celebrity 34 trades 59 % +0.281. The control's mean rises monotonically with the creator's buy at create: 0 SOL +0.034, under 0.5 +0.096, under 1 +0.212, under 2 +0.228, under 5 +0.313, 5 and over +0.315",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F03",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "L1 holds direction: control trades entered in a dead hour (trailing-hour runner share under 0.30) made +0.034 SOL mean at 17 % win (n=36) against +0.150 at 32 % in live hours (n=1,078); the 15-minute resist state saw 13 trades",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F04",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "L3 is weak: a fresh catalyst (term under 30 min old in the hour's news) gave +0.100 mean on 282 control trades against +0.077 stale on 451; a comparable that ran gave +0.138 on 69 against +0.086 never-ran on 71 and +0.089 blank on 142; the best cell is 'catalyst unknown' (term never seen by the replay's news clock), +0.252 on 401",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F05",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "RI-05's most broken stage is the stop: 58 stops, 0 % win, -3.8 SOL of -5.5 SOL lost, median -6.9 % against a -5 % line; time exits (76) lost 0.9, slow exits (25) lost 0.7, takes (10) made 1.8; only 1 of 49 full-size positions reached +20 % and took its stake out inside 180 s",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F06",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "src/five.py's Shadow class (on_terms, on_path_done, on_marks, _close) is complete and never called from src/duval.py; the engine that would call it is the one counting RI-04 (B9 unchanged at 144663e), and its predecessor crash-looped on blank state files on 2026-10-09",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-F07",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The replay and the live engine share duval.buy, duval.sell and duval.net_in and read the same marks; paths are 180 s long, so HOLD_S is 180 and nothing the loop would hold longer can be scored by replay",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-I01",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "As filters on RI-04's loop, L2 (narrative only) and L4 (the free trade) are falsified on this tape: the never list bans the control's best entries and the first leg almost never arrives inside the window. P1 (arrivals) and L1 (the meta gate) hold direction and are worth keeping as reads",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-I02",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "A live shadow would run the same functions on the same marks the replay already sees; the only new information is real-time cadence, and the cost is a new write path and a new failure mode inside the counted engine",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-I03",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "The creator's buy at create is a signal RI-04 does not use and the 5 % forbids; on the tape it orders the control's mean six cells in a row, which is a forecast for the journal before it is a rule for any contract",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-U01",
+   "layer": "L3",
+   "label": "UNKNOWN",
+   "text": "Whether the dev-class edge in the first three minutes survives to 24 h (the ret24 file could say; not read)",
+   "ruling": "UNVERIFIED",
+   "alive": "0.00",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-U02",
+   "layer": "L3",
+   "label": "UNKNOWN",
+   "text": "Whether the 'narrative' insentos and Duval trade is the Google News proper noun RI-04 matches, or an X trend the sensor cannot see (carried from U02 of 2026-10-23)",
+   "ruling": "UNVERIFIED",
+   "alive": "0.00",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-M01",
+   "layer": "L1",
+   "label": "FACT",
+   "text": "Leg RI-04 stands at KILL: G2 drawdown 44.74 SOL",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-opt-A-replay-only",
+   "layer": "L3",
+   "label": "INFERENCE",
+   "text": "[OPEN] Keep RI-05 as a replayed hypothesis book: ops/five_replay.py runs in the morning command and writes out/five.md; the Shadow class stays in src/five.py uncalled; docs/RI-05.md records the rules as code, the constants and the verdict; the one patch owed is the stop stage, tested on the replay before any other; the creator's-buy ordering (I03) becomes a Foresight Journal forecast on RI-04's own closes, not a rule",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-opt-B-wire-shadow-live",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Call Shadow from src/duval.py on every mark pass, writing journal/paper.RI-05.jsonl beside RI-04's book and state/five.json; the readout ignores it",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-opt-C-drop",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Delete src/five.py and ops/five_replay.py; keep the two documents as reading",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-five-percent-shadow-R01",
+   "layer": "L4",
+   "label": "INFERENCE",
+   "text": "RULED: option A. RI-05 stays a replayed hypothesis book. The 5 % as written loses on RI-04's own tape (PF 0.34 against 4.50), its class rule runs backwards, and its free trade never arrives inside the window; the meta gate and the arrivals read hold direction and stay as reads. One patch, the stop, is owed and goes through the replay first. Nothing is wired into the counted engine until a replay is positive.",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  }
+ ],
+ "gates": [
+  {
+   "gate": "rich-ri05-positive-on-tape",
+   "rule": "ri05_pf_x100 >= 100",
+   "measured": 34,
+   "reading": "NO BELIEF",
+   "from": "state/five_replay.json five.pf times 100; under 100 (PF 1) the Shadow class is not called from the engine"
+  },
+  {
+   "gate": "rich-capital-after-s1",
+   "rule": "s1_reached >= 1",
+   "measured": 0,
+   "reading": "NO BELIEF",
+   "from": "ops/readout.py verdict SURVIVES ON PAPER"
+  }
+ ]
+}
