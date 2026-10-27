@@ -28,6 +28,9 @@ import population as P    # noqa: E402
 
 OUT = C.path("out", "five.md")
 STATE = C.path("state", "five_replay.json")
+# the control filled at the first on-chain mark instead of the message's reserves (population.replay picks the first mark at or after
+# `delay`; any positive delay under the first mark's age selects it). Both books are shown at both fills; see "The fill" below.
+FIRST_MARK = dict(P.CONTROL, name="control at first mark", delay=1e-9)
 
 
 def epoch(iso):
@@ -119,15 +122,18 @@ def main(days):
         k5, size, read = F.decide(p, t, meta, terms, comps, open_terms, stake)
         ctrl = P.replay(p, P.CONTROL)
         read["ctrl"] = ctrl
+        read["ctrl_fm"] = P.replay(p, FIRST_MARK)
         reads.append((p, read))
         if not k5 or full_book:
             if k5 and full_book:
                 read["skip"] = "book full"
             continue
         p_terms = list(p["match"])
-        tr = F.run_position(p["marks"], 0, size, k5, lambda ta: any(terms.alive(x, ta) for x in p_terms), lambda ta: meta.state(ta)[0], t)
+        alive, gate = (lambda ta: any(terms.alive(x, ta) for x in p_terms)), (lambda ta: meta.state(ta)[0])
+        tr = F.run_position(F.entry_marks(p), 0, size, k5, alive, gate, t)       # filled at the message's reserves, as the counted book is
         if not tr:
             continue
+        tr["first_mark"] = F.run_position(p["marks"], 0, size, k5, alive, gate, t)   # the same position filled at the first on-chain mark
         tr["mint"], tr["name"], tr["ts"], tr["read"] = p["mint"], p["name"], p["ts"], read
         five_trades.append(tr)
         open_until.append((t + tr["held"], p_terms))
@@ -193,14 +199,26 @@ def main(days):
     for k in sorted(ex, key=lambda k: stats(ex[k])["sum"]):
         L.append(row(k, stats(ex[k])))
     L.append("")
-    losses = [t for t in five_trades if t["net"] <= 0]
-    stage = collections.Counter()
-    for t in losses:
-        stage[t["why"]] += -t["net"]
-    if stage:
-        worst = stage.most_common(1)[0]
-        L.append(f"**The most broken stage:** {worst[0]} ({worst[1]:.1f} SOL of {sum(stage.values()):.1f} SOL lost). One patch there, through RI, before any other.")
+    # the fill: both books at both entry states. Ruled 2026-10-27 (decisions/2026-10-27-ri05-stop-stage): the stop was never the
+    # lever; the entry state was. The convention that decides both books stays in the report, not in a constant.
+    L += ["## The fill (both books, both entry states)", "",
+          "RI-04's control and the counted book fill at the create message's reserves; a buyer who lands after the first second fills at the first on-chain mark. "
+          "Whether the message fill is attainable is the open first-buyer question both books share (U01). On the launches RI-05 entered:", "",
+          "| book · fill | n | win | mean SOL | sum SOL | PF | med % |", "|---|---|---|---|---|---|---|"]
+    ent = [t for t in five_trades]
+    ctrl_on = [t["read"]["ctrl"] for t in ent if t["read"].get("ctrl")]
+    ctrl_on_fm = [t["read"]["ctrl_fm"] for t in ent if t["read"].get("ctrl_fm")]
+    fm = [t["first_mark"] for t in ent if t.get("first_mark")]
+    L.append(row("RI-04 exits · message reserves", stats(ctrl_on)))
+    L.append(row("RI-04 exits · first mark", stats(ctrl_on_fm)))
+    L.append(row("RI-05 · message reserves (the book above)", stats(ent)))
+    L.append(row("RI-05 · first mark", stats(fm)))
     L.append("")
+    ctrl_all_fm = [r["ctrl_fm"] for _, r in reads if r.get("ctrl_fm")]
+    L.append(f"Over every control entry: message reserves {stats(ctrl_all)['n']} trades {stats(ctrl_all).get('sum', 0):+.1f} SOL (PF {stats(ctrl_all).get('pf', 0):.2f}); "
+             f"first mark {stats(ctrl_all_fm)['n']} trades {stats(ctrl_all_fm).get('sum', 0):+.1f} SOL (PF {stats(ctrl_all_fm).get('pf', 0):.2f}).")
+    L.append("")
+    fill = {"ctrl_on_entries": stats(ctrl_on), "ctrl_on_entries_first_mark": stats(ctrl_on_fm), "five_first_mark": stats(fm), "ctrl_all_first_mark": stats(ctrl_all_fm)}
     # phases at exit
     ph = collections.Counter(t["phase"] for t in five_trades)
     L.append("S-curve phase at the loop's exit: " + ", ".join(f"{k} {v}" for k, v in ph.most_common()))
@@ -216,7 +234,7 @@ def main(days):
         f.write(text + "\n")
     C.save_json(STATE, {"ts": C.iso(), "days": day_set, "control": stats(ctrl_all), "five": stats(five_trades),
                         "by_day": {d: stats([t for t in five_trades if t["ts"][:10] == d]) for d in day_set},
-                        "skips": dict(skips), "exits": {k: stats(v) for k, v in ex.items()}})
+                        "skips": dict(skips), "exits": {k: stats(v) for k, v in ex.items()}, "fill": fill})
     print(text)
 
 

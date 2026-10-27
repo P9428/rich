@@ -1,0 +1,205 @@
+{
+ "root": "f9156a47909e186a195754d01e90161ddef054bbd1b3161568a3a5466792a3d3",
+ "size": 19,
+ "options": [
+  {
+   "id": "A-align-entry-show-both-fills",
+   "do": "RI-05 enters at the create message's reserves, the same state as RI-04's control and the live book (replay and the uncalled Shadow); the stop stays at RI-04's -5 % because no level matters at that fill; out/five.md shows both books under both fill states (message, first mark) side by side and names the fill as the shared open question; the 'most broken stage' line is replaced by that table; docs/RI-05.md records the correction",
+   "label": "INFERENCE",
+   "basis": "F01+F03+F04+I01+I02+I03",
+   "asymmetry": "up: the two books become comparable and the fill convention that decides both is in the report every morning; down: RI-05's PF rises to RI-04's by sharing RI-04's fill assumption, not by being right about anything",
+   "fails_if": "the message-reserve fill is not attainable (U01) and both books have been counting a fill nobody could get; the table makes that visible rather than hiding it, which is the point",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a replay that scores the 5 % against RI-04 under the same fill, plus the first-mark row that bounds the fill risk for both",
+   "ownership": "owned",
+   "system_effect": "src/five.py gains an entry-state helper used by the replay and the Shadow; ops/five_replay.py gains a second pass; the counted engine is untouched",
+   "veto": ""
+  },
+  {
+   "id": "B-loosen-stop",
+   "do": "Move STOP to -10 % or -20 %, or arm it only after 10-30 s, and keep the first-mark entry",
+   "label": "HYPOTHESIS",
+   "basis": "F01",
+   "asymmetry": "up: matches the request's wording; down: every level and every delay was measured and none moves the book above water",
+   "fails_if": "it was already measured to fail (F01): the full-size book books -3.5 to -4.3 SOL at every setting",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a constant changed for a reason the tape has already refused",
+   "ownership": "owned",
+   "system_effect": "none beyond the constant",
+   "veto": ""
+  },
+  {
+   "id": "C-first-mark-for-both",
+   "do": "Keep RI-05 at the first mark and run the control at the first mark too, accepting that both books are negative at the attainable fill",
+   "label": "HYPOTHESIS",
+   "basis": "F05+I02",
+   "asymmetry": "up: the replay then scores the fill a real buyer gets; down: it declares RI-04's counted book an artifact on the strength of a replay convention, mid-leg, which the journal doctrine forbids (rule gaps mid-leg become a forecast and a lesson owed to the next contract, not a change to the running one)",
+   "fails_if": "the message fill is attainable often enough that the first-mark replay throws away a real edge, and the counted leg is judged on a convention stricter than its own contract",
+   "survivable": true,
+   "reversible": true,
+   "competence": "inside",
+   "incentive": "",
+   "asset": "a conservative replay of both books",
+   "ownership": "owned",
+   "system_effect": "the control in out/five.md would disagree with the control in out/population.md and with the counted book",
+   "veto": ""
+  }
+ ],
+ "rows": [
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-F01",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "On the same tape and the same RI-05 entries, no stop level moves the full-size book above water: -5 % books -3.0 SOL, -8 % -3.9, -10 % -4.0, -15 % -4.1, -20 % -4.3, -30 % -3.5, no stop -3.6; arming the stop only after 10, 20 or 30 s books -4.0 to -4.3; the scalp stop at -5, -10, -20 % books -1.9, -2.0, -2.5",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-F02",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "Of RI-05's 70 stops, 24 fired within 2.5 s of entry and 41 within 6 s, at a median -7.1 %; only 2 of the 13 full-size stops had ever been above water",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-F03",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The 204 launches RI-05 entered, run under RI-04's own exits by population.replay, make +22.5 SOL at PF 4.35 with 33 takes; RI-05 on the same 204 makes -4.9 SOL at PF 0.33",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-F04",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The two replays enter at different states: five.run_position buys at the first on-chain mark (1-2 s after the create, after the dev's and the snipers' buys); population.replay and the live duval.Book.enter buy at the create message's reserves. RI-05 rerun at the message's reserves makes +10.2 SOL, PF 4.22, 27 % win on the same 204 launches, and the full-size stop then fires once at -5 % and never at -10 % or looser",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-F05",
+   "layer": "L0",
+   "label": "FACT",
+   "text": "The population report of 2026-10-24 already showed the same dependence for RI-04 itself: the control at the message's reserves PF 4.65 (+69.6 on 459) against the 'entry +2 s (first mark)' variant PF 0.26 (-34.3 on 459, 36 % stops, 5 % takes)",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-I01",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "The stop is where RI-05's losses were booked, not where they were caused. The cause is the entry mark: a book that buys after the first second's buyers and marks to the same curve is under water at once, and any stop then only chooses how big the first-second loss is booked. The report's 'most broken stage' line, attributed by exit trigger, pointed at the wrong stage",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-I02",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "Both books hang on one convention: whether a fill at the create message's reserves is attainable. At the first mark both lose; at the message's reserves both win at a similar PF (4.22 against 4.35 on the same launches). The 5 % loop is neither better nor worse than RI-04's loop on this tape once the fill is the same; it is a smaller book that exits earlier",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-I03",
+   "layer": "L1",
+   "label": "INFERENCE",
+   "text": "A comparison between two books is only a comparison if they fill at the same state; RI-05 must enter where RI-04 enters, and the report must show both books under both fills so the convention stays visible rather than buried in a constant",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-U01",
+   "layer": "L3",
+   "label": "UNKNOWN",
+   "text": "How often a real 1.5 SOL buy lands at the create message's reserves, before the first outside buyer (the first-buyer question I02 of 2026-10-23); only a real tip or a timestamped first-outside-buy measurement can say, and it decides whether RI-04's counted +164 SOL is a fill the book could have had",
+   "ruling": "UNVERIFIED",
+   "alive": "0.00",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-M01",
+   "layer": "L1",
+   "label": "FACT",
+   "text": "Leg RI-04 stands at KILL: G1 12 consecutive losers",
+   "ruling": "USABLE",
+   "alive": "0.95",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-opt-A-align-entry-show-both-fills",
+   "layer": "L3",
+   "label": "INFERENCE",
+   "text": "[OPEN] RI-05 enters at the create message's reserves, the same state as RI-04's control and the live book (replay and the uncalled Shadow); the stop stays at RI-04's -5 % because no level matters at that fill; out/five.md shows both books under both fill states (message, first mark) side by side and names the fill as the shared open question; the 'most broken stage' line is replaced by that table; docs/RI-05.md records the correction",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-opt-B-loosen-stop",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Move STOP to -10 % or -20 %, or arm it only after 10-30 s, and keep the first-mark entry",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-opt-C-first-mark-for-both",
+   "layer": "L3",
+   "label": "HYPOTHESIS",
+   "text": "[OPEN] Keep RI-05 at the first mark and run the control at the first mark too, accepting that both books are negative at the attainable fill",
+   "ruling": "WEAK",
+   "alive": "0.35",
+   "dead": "0.00"
+  },
+  {
+   "claim": "rich-2026-10-27-ri05-stop-stage-R01",
+   "layer": "L4",
+   "label": "INFERENCE",
+   "text": "RULED: option A. The stop was never the lever: no level or delay moves the book, and 41 of 70 stops fired inside six seconds because RI-05 bought after the first second's buyers while RI-04 bought at the message's reserves. Align the entry, keep the -5 % stop, and show both books under both fills every morning. The fill is the open question for both books and goes to the journal, not into either contract.",
+   "ruling": "USABLE",
+   "alive": "0.60",
+   "dead": "0.00"
+  }
+ ],
+ "gates": [
+  {
+   "gate": "rich-ri05-positive-on-tape",
+   "rule": "ri05_pf_x100 >= 100",
+   "measured": 422,
+   "reading": "BELIEF",
+   "from": "RI-05 at the message's reserves on the same 204 launches, scratchpad rerun 06:20Z; in-sample on the days the constants were frozen"
+  },
+  {
+   "gate": "rich-ri05-out-of-sample-days",
+   "rule": "aligned_replay_days_after_freeze >= 1",
+   "measured": 0,
+   "reading": "NO BELIEF",
+   "from": "days of tape from 2026-10-28 on scored by the aligned replay; wiring the Shadow waits for this"
+  },
+  {
+   "gate": "rich-capital-after-s1",
+   "rule": "s1_reached >= 1",
+   "measured": 0,
+   "reading": "NO BELIEF",
+   "from": "ops/readout.py verdict SURVIVES ON PAPER"
+  }
+ ]
+}
