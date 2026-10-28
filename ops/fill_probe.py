@@ -42,6 +42,13 @@ MIN_BALANCE = 0.06       # SOL; 5 buys at 0.01 plus fees, rent and the sells
 FLOOR = 0.02             # SOL; stop when the balance falls under this
 CONFIRM_S = 45           # s; a send not confirmed by then is recorded as dropped
 MAX_ATTEMPTS = 12
+# the fees a real trade pays through this path, measured per account on chain 2026-10-28 (five round trips): the whole amount goes
+# into the curve; on top, pump.fun takes 1.26 % (three recipients), PumpPortal 0.5 %, the tx 0.000505 SOL (0.0005 priority + base);
+# the token account's rent (0.001514 SOL) is paid on the buy and refunded on the sell; a one-time 0.001346 SOL account on the
+# wallet's first buy. src/duval.py assumes 1 % and 0.001 SOL a side: a round trip is 3.52 % + 0.001 SOL, not 2 % + 0.002 SOL.
+FEE_PCT = 0.0126 + 0.005
+FEE_TX = 0.000505
+RENT = 0.001514
 
 
 def log(line):
@@ -129,9 +136,46 @@ def create_slot(sig):
 
 
 def model_price(v_sol, v_tok, size):
-    """SOL per token the curve arithmetic says `size` SOL buys at this state."""
-    tok = D.buy(v_sol, v_tok, size)
+    """SOL per token the curve gives for `size` SOL put into it at this state (the whole amount enters the curve; fees are on top)."""
+    tok = v_tok - v_sol * v_tok / (v_sol + size)
     return (size / tok) if tok > 0 else None, tok
+
+
+def raw_gross(v_sol, v_tok, tokens, size):
+    """Gross SOL the curve returns for `tokens` at this state, the book's own `size` added back first (as duval.mark_value, no fees)."""
+    k = v_sol * v_tok
+    vs = v_sol + size
+    return vs - k / (k / vs + tokens)
+
+
+def recompute(r):
+    """The measured comparison for one landed row: landed price vs each state, the sell's gross vs the exit mark, fees paid."""
+    tx, size = r.get("tx") or {}, r["size"]
+    if not r.get("landed") or not tx.get("tok_delta"):
+        return r
+    r["landed_price"] = size / tx["tok_delta"]
+    v0 = r["msg"]; ch = (r.get("read") or {}).get("chain") or {}; fm = r.get("first_mark") or {}
+    states = {"msg": (v0["v_sol"], v0["v_tok"]), "read": (ch.get("v_sol"), ch.get("v_tok")), "first_mark": (fm.get("v_sol"), fm.get("v_tok"))}
+    r["vs"] = {}
+    for k, (vs_, vt_) in states.items():
+        if vs_ and vt_:
+            pm = model_price(vs_, vt_, size)[0]
+            r["vs"][k] = round(r["landed_price"] / pm - 1, 4)
+    s = r.get("sell") or {}
+    st = s.get("tx") or {}
+    if st and st.get("err") is None:
+        gross = st["sol_delta"] - RENT + FEE_PCT * size + FEE_TX          # what the curve paid out, before fees and the rent refund
+        s["gross_out"] = round(gross, 6)
+        s["gross_pct"] = round(gross / size - 1, 4)
+        ex = r.get("exit") or {}
+        if ex.get("mark"):
+            m = ex["mark"]
+            mark_gross = raw_gross(m[1], m[2], tx["tok_delta"], size)
+            ex["raw_pct_at_mark"] = round(mark_gross / size - 1, 4)
+            s["vs_mark_pct"] = round(gross / size - mark_gross / size, 4)
+        r["net_sol"] = round(st["sol_delta"] + tx["sol_delta"], 6)
+        r["fees_sol"] = round(2 * (FEE_PCT * size + FEE_TX), 6)
+    return r
 
 
 class Probe:
@@ -303,16 +347,19 @@ class Probe:
             log(f"report error {e!r}")
 
     def report(self):
-        rows = self.rows
+        rows = [recompute(r) for r in self.rows]
         L = [f"# The fill probe · {C.iso()} · {len(rows)} landed buys of {self.size} SOL · wallet {self.pub}", "",
-             "Where a real signed buy lands against the three states the replays grade at. 'vs' is the landed price over the model price at that state, minus one: positive means the book paid more than that state says.", "",
-             "| when | name | read s after create | sent s | landed slot − create | slot − read | vs message | vs read | vs first mark | exit | mark % | sell vs mark | net SOL |",
+             "Where a real signed buy lands against the three states the replays grade at. 'vs' is the landed price over the curve's price "
+             "at that state for the same SOL, minus one: positive means the book paid more than that state says. 'raw mark %' is the exit "
+             "mark's gross on the curve; 'sell vs mark' is the sell's landed gross minus that, in points. Fees are on top of every number but "
+             f"net: {FEE_PCT:.2%} and {FEE_TX} SOL a side (pump.fun 1.26 %, PumpPortal 0.5 %, tx), measured per account on chain.", "",
+             "| when | name | read s after create | sent s | landed slot − create | slot − read | vs message | vs read | vs first mark | exit | raw mark % | sell vs mark | net SOL |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in rows:
             vs = r.get("vs", {}); ex = r.get("exit", {}); s = r.get("sell", {})
             L.append(f"| {r['ts'][11:19]} | {r['name'][:24]} | {r['read']['t_after_create']} | {r.get('t_sent_after_create')} | {r.get('slots_after_create')} | {r.get('slots_after_read')} | "
                      f"{vs.get('msg', float('nan')):+.1%} | {vs.get('read', float('nan')):+.1%} | {vs.get('first_mark', float('nan')):+.1%} | {ex.get('why', '')} | "
-                     f"{ex.get('pct_at_mark', float('nan')):+.1%} | {s.get('vs_mark_pct', float('nan')):+.1%} | {r.get('net_sol', float('nan')):+.5f} |")
+                     f"{ex.get('raw_pct_at_mark', float('nan')):+.1%} | {s.get('vs_mark_pct', float('nan')):+.1%} | {r.get('net_sol', float('nan')):+.5f} |")
         if rows:
             import statistics as st
             for k in ("msg", "read", "first_mark"):
@@ -337,6 +384,12 @@ if __name__ == "__main__":
     ap.add_argument("--size", type=float, default=0.01)
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--any", action="store_true", help="dry runs only: ignore the news match to exercise the path")
+    ap.add_argument("--report", action="store_true", help="rewrite out/probe.md from journal/probe.jsonl; no feed, no send")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
+    if a.report:
+        pr = Probe(a.buys, a.size, True)
+        pr.report()
+        print(open(OUT, encoding="utf-8").read())
+        raise SystemExit(0)
     raise SystemExit(asyncio.run(Probe(a.buys, a.size, a.dry, a.any).run()))

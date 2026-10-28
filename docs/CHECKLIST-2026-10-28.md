@@ -36,3 +36,35 @@ replay had been grading at a fill the counted book does not get (`decisions/2026
 - RI-05's verdict is read only on days after 10-27. `ops/five_replay.py` is unchanged; its by-day table carries the held-out days.
 - Step 1 real buys are deferred behind the gate `rich-fork-positive-at-first-mark`. Capping RI-04's count (option C) is the operator's.
 - RI-04's contract, constants and KILL verdict are untouched. No capital moves.
+
+## Bet 2, done the same night: five real 0.01 SOL buys (`ops/fill_probe.py`, `out/probe.md`, `journal/probe.jsonl`)
+
+The operator moved bet 2 ahead of the gate at five buys and funded a fresh wallet (HGX1FHEo…gj76, key and phrase in `~/.rich`,
+outside the repo). All five landed, 05:39-05:41Z, on launches named "THIS IS REAL CHECK TIKTOK ACC" (twice) and "Prime Minister
+of Israel" (three times). Net over the five round trips, fees and rent included: -0.00168 SOL.
+
+| what reality said | number |
+|---|---|
+| chain read after the create | 0.13-0.14 s |
+| buy built, signed and sent after the create | 0.38-0.49 s |
+| landed after the read | 2-3 slots (3-5 after the create) |
+| landed price vs the chain read | 0.0 % on four, +6.1 % on one |
+| landed price vs the first mark | 0.0, 0.0, -0.4, -2.5, 0.0 % |
+| landed price vs the create message | +163 % and +190 % on two of five (a buyer was ahead within 130 ms); 0 to +2.5 % on three |
+| sell landed vs the exit mark, about 3 s later | 0 on the three flat curves; +11.6 and -18.8 points on the two live ones |
+| fee a round trip actually pays | 3.52 % + 0.001 SOL (pump.fun 1.26 % a side, PumpPortal 0.5 % a side, tx 0.000505 SOL); the engine assumes 2 % + 0.002 SOL |
+
+**What it settles.** The first-mark grader is exact, not pessimistic: a signed transaction lands at the state the first mark shows,
+within 2.5 points, one second after the read. The morning ruling's inference that the real fill can only be worse than the first
+mark was right in sign and small in size. The message fill is a phantom on the launches that matter: where a buyer was ahead, the
+landed price was 2.6 to 2.9 times the message price. Both contracts' verdicts at the first-mark fill stand as reality's verdicts.
+
+**What it adds.** Two things the tape could not show. The exit lands 12 points above or 19 points below the mark that triggered it
+on a live curve, three seconds later: an exit rule read on 2-second marks is a coin on a moving curve. And the fee floor is 3.5 %
+a round trip, not 2.1 %: Amendment 4's -5 % stop sits 1.5 points above the floor, not three. Lesson 54c4faa74de6 in the Foresight
+Journal; the fee constants in `src/duval.py` are a contract matter for the next id, not a live edit. The three "stop" exits in the
+table are the 0.01 SOL size making the engine's 0.001 SOL fee constant read as -10 %; the raw curve was flat (+0.1 %).
+
+**What it does not settle.** Five fills at 0.01 SOL say nothing about impact at 1.5 SOL (the curve arithmetic says 5 % on a fresh
+curve) or about contention when a launch is hot; four of the five curves had no one else on them in the first second.
+
