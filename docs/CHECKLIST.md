@@ -1,0 +1,43 @@
+# The daily operating checklist
+
+Seven rules (from Musk, Noam Brown and the Dwarkesh panel, 2026-10-27) and the three questions added 2026-10-28. The morning
+`/rich` command runs them after the readout, before anything is proposed. A review that does not name one binding stage is not a
+review.
+
+1. **Attack the limiting factor, nothing else.** Musk says it a hundred times. Brown says RSI is bottlenecked by experiments, not
+   intelligence. The panel says progress stalls wherever the model is weakest. Rule: every review names the one binding stage and
+   works only there.
+2. **Reality is the only grader.** Musk: physics is law, RL against reality. Brown: honest evaluation or the grader gets hacked. The
+   panel: the judge gets reward-hacked, sim-to-real is the gap. Rule: marks come from the chain, fills pay their own impact, and no
+   rule is ever tuned on the book that judges it.
+3. **Bits per day is the currency.** The panel: RL learns one bit per episode, and the frontier's signal does not exist in the data
+   lying around, you must build the environment. Brown: 130 billion tokens in 88 hours. Rule: 40 closes is 40 bits. The launch stream
+   is 29,000 launches a day. Score all of them.
+4. **Parallel agents, fork from one context, spin down the losers.** Brown's 10,000 agents and forked context. Musk's 10,000 Optimus
+   doing self-play in an academy. The panel's millions of instances. Rule: one feed, a population of paper books, each a one-variable
+   fork of the contract, all marked against the same tape.
+5. **Promote only on a held-out bench, else discard.** The panel's Cursor rule: redeploy every five hours if it beats the bench, throw
+   it away if not. Musk's weekly review plotting points to see if they converge. Rule: a variant becomes a candidate only after beating
+   the control on consecutive forward days.
+6. **Climb one rung at a time.** The panel: fifth-grade to college math gave no signal, successive rungs did. Musk: build a little fab
+   first, ride the S-curve. Rule: one changed variable per contract.
+7. **The human keeps the objective; the machine keeps the discipline.** The panel: alignment's last job is specifying what we want.
+   Musk: hire for traits, add domain knowledge. Brown: agents are exceptional and jagged. Rule: the paragraph and the gates are the
+   operator's; the machine's edge over Jack is that it never sizes up, never averages down, never comes back bigger after a red day.
+
+## The three questions (answered every morning, in writing, before any proposal)
+
+1. **What is the one thing limiting us right now?** One stage, named, with the number that shows it binds. Rate, edge, exits, count,
+   grader, or environment. If the answer is "several", the review is not finished.
+2. **What does reality actually reward, as opposed to the tape or the backtest?** Say where the tape and reality part: the fill a
+   transaction lands at, the slot it lands in, the fees and tips it pays, the dumps between two marks. Any book graded only on the tape
+   is a hypothesis.
+3. **What is the smallest sequence of bets that lets reality grade early and cheaply?** Ordered, each with its cost in SOL and the bit
+   it buys. The first bet is usually free (a replay at the honest fill). The first real bet measures the fill, not the edge. No bet is
+   sized up until reality has graded the one before it.
+
+## Record
+
+| day | Q1 the one thing | Q2 reality vs tape | Q3 the sequence |
+|---|---|---|---|
+| 2026-10-28 | the grader: every replay filled at the message's reserves, the counted book at the chain read; fixed (decisions/2026-10-28-ri04-fill-grader). Step 0 done 04:35Z: all 21 forks scored at the first-mark fill over 10-26..10-28 (498 control entries, mean -0.050 SOL, PF 0.43, agreeing with the counted book's -0.045); no fork is positive, the best is entry +10 s at -0.036 and take +10 % at -0.034; news hurts (matched -0.050 vs unmatched -0.035, 90 % interval below 0). The population task had been dead since 10-25 on a torn path line; reader made tolerant | the fill a signed tx lands at, 1-3 slots after the read; the tape's first mark (1.3 s) is the nearest proxy; 175 of 478 stops booked below -10 % because the dump came between two marks | 0: population at the first-mark fill (free). 1: 20 real 0.01 SOL buys to measure landed fill vs message vs first mark (about 0.3 SOL). 2: only if a fork is positive at the measured fill, 40 real closes at 0.1 SOL. 3: 1.5 SOL only after S1 at real fills |

@@ -35,7 +35,7 @@ CONTROL = {"name": "control (RI-04)", "filter": "matched", "pump_only": True, "m
 VARIANTS = [
     {"name": "all launches (no news)", "filter": "all"},
     {"name": "unmatched only", "filter": "unmatched"},
-    {"name": "entry +2 s (first mark)", "delay": 2.0},
+    {"name": "entry +2 s", "delay": 2.0},
     {"name": "entry +10 s", "delay": 10.0},
     {"name": "entry after first outside buy (<=10 s)", "first_buyer": True},
     {"name": "take +10 %", "take": 0.10},
@@ -58,9 +58,18 @@ VARIANTS = [
 
 
 def load_paths(days):
+    """Rows of the last `days` path files. The engine appends to today's file while this runs, so a torn or interleaved line is
+    skipped, not fatal (the strict reader killed every scheduled run from 2026-10-25 to 10-28; the report stayed at 10-24)."""
     rows = []
     for f in sorted(glob.glob(os.path.join(C.ROOT, "journal", "paths", "*.jsonl")))[-days:]:
-        rows += C.read_jsonl(f)
+        with open(f, "rb") as fh:
+            for raw in fh.read().splitlines():
+                if not raw.strip():
+                    continue
+                try:
+                    rows.append(json.loads(raw.decode("utf-8", "ignore")))
+                except Exception:
+                    continue
     return rows
 
 
@@ -231,7 +240,7 @@ def main(days):
     L.append("## Funnel"); L += [f"- {k}: {v}" for k, v in funnel.items()]; L.append("")
     L.append("## Limiting factor"); L.append(limiting_factor(paths, ctrl, ctrl_book, live, len(day_set))); L.append("")
     L.append("## The hypothesis: does the headline match matter?")
-    a = [t["net"] for t in trades["control (RI-04)"]]; b = [t["net"] for t in trades["unmatched only"]]
+    a = [t["net"] for t in trades[CONTROL["name"]]]; b = [t["net"] for t in trades["unmatched only"]]
     ci = diff_ci(a, b)
     if ci:
         L.append(f"matched mean {st.mean(a):+.4f} SOL (n={len(a)}) vs unmatched {st.mean(b):+.4f} (n={len(b)}); difference 90 % interval "
@@ -266,6 +275,14 @@ def main(days):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=3)
+    # the entry state of the control and every fork that does not set its own. "first-mark" (the default since the ruling of
+    # 2026-10-28, decisions/2026-10-28-ri04-fill-grader) is the state nearest the counted book's fill: duval.Book.enter reads the curve
+    # on chain at decision. "message" fills at the create message's reserves, a counterfactual that books an earlier buyer's pump as the
+    # book's own on the half of launches that have one.
+    ap.add_argument("--fill", choices=("first-mark", "message"), default="first-mark")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
+    if a.fill == "first-mark":
+        CONTROL["delay"] = 1e-9
+        CONTROL["name"] = "control (RI-04, first-mark fill)"
     main(a.days)
