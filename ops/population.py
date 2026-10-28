@@ -6,7 +6,11 @@ same curve arithmetic and fees the live book pays. It then names the limiting fa
 look, under the promotion rule: beat the control on mean net on each of the last PROMOTE_DAYS forward days with at least
 PROMOTE_N trades a day. Nothing is promoted by this script; a promoted variant is a candidate for the next contract id, ruled through RI.
 
-  python ops/population.py [--days 3]        -> out/population.md, state/population.json
+  python ops/population.py [--days 3] [--fill first-mark|message]   -> out/population.md, state/population.json
+
+Since 2026-10-28 every book fills at the first on-chain mark (the state nearest the counted book's fill; --fill message is the
+counterfactual), RI-05's rules are forked one at a time onto the control, and a candidate must be positive as well as beat the
+control: beating a losing control only says a fork loses less.
 """
 import argparse
 import glob
@@ -22,6 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 import common as C   # noqa: E402
 import duval as D    # noqa: E402
+import five as F     # noqa: E402
 
 OUT = C.path("out", "population.md")
 STATE = C.path("state", "population.json")
@@ -30,7 +35,9 @@ PROMOTE_N = 50
 MIN_SIDE = 30
 
 CONTROL = {"name": "control (RI-04)", "filter": "matched", "pump_only": True, "mcap_max": D.MCAP_MAX_USD, "take": D.TAKE, "stop": D.STOP,
-           "hold": D.HOLD_S, "delay": 0.0, "size": D.SIZE_SOL, "first_buyer": False}
+           "hold": D.HOLD_S, "delay": 0.0, "size": D.SIZE_SOL, "first_buyer": False,
+           # RI-05's rules, off in the control; each fork below turns one on (src/five.py; docs/RI-05.md section 1)
+           "gate": None, "narrative": False, "free": False, "slow": False}
 # one variable each; the names say which
 VARIANTS = [
     {"name": "all launches (no news)", "filter": "all"},
@@ -54,6 +61,11 @@ VARIANTS = [
     {"name": "mcap < $6K", "mcap_max": 6_000},
     {"name": "mcap < $20K", "mcap_max": 20_000},
     {"name": "any mint (not only pump suffix)", "pump_only": False},
+    # RI-05's rules one at a time on RI-04's control, at the same fill (ruled 2026-10-28, decisions/2026-10-28-checklist-both-contracts)
+    {"name": "RI-05 L1: enter only in a live meta hour", "gate": "live"},
+    {"name": "RI-05 L2: narrative class only (no dev, tech, celebrity)", "narrative": True},
+    {"name": "RI-05 L4: free trade (stake out at the take, the rest rides to the hold)", "free": True},
+    {"name": "RI-05 L5b: exit when arrivals slow for 10 s", "slow": True},
 ]
 
 
@@ -73,9 +85,25 @@ def load_paths(days):
     return rows
 
 
+def annotate(paths):
+    """RI-05's reads of every launch, computed once in launch order: the meta gate state at its create (five.Meta, the runner share
+    of plain pump launches whose 180 s path has finished) and its class (five.classify). Stored on the path as _gate and _class."""
+    meta = F.Meta()
+    for p in sorted(paths, key=lambda p: p["ts"]):
+        t0 = D.calendar.timegm(time.strptime(p["ts"][:19], "%Y-%m-%dT%H:%M:%S"))
+        p["_gate"] = meta.state(t0)[0]
+        p["_class"] = F.classify(p.get("name"), p.get("sym") or p.get("symbol"), p.get("init_sol"), p["match"])
+        if p["mint"].endswith("pump") and p.get("pool") in (None, "pump") and not p.get("mayhem") and p["marks"]:
+            meta.add(t0 + F.HOLD_S, F.ran(p))
+
+
 def replay(p, rule):
     """One launch through one rule. Returns the trade dict or None if the rule does not enter."""
     if rule["filter"] == "matched" and not p["match"]:
+        return None
+    if rule["gate"] and p.get("_gate") != rule["gate"]:
+        return None
+    if rule["narrative"] and p.get("_class") != "narrative":
         return None
     if rule["filter"] == "unmatched" and p["match"]:
         return None
@@ -118,16 +146,34 @@ def replay(p, rule):
     pct = None
     why = "end"
     peak = trough = 0.0
-    for m in marks:
-        if m[0] < t_in or (m is entry):
+    c, rem, got, stake_out = D.net_in(size), tokens, 0.0, False     # the book's own SOL on the curve; tokens left; SOL taken out
+    slow_since = None
+    for i, m in enumerate(marks):
+        if m[0] < t_in or (m is entry) or m[2] <= 0:
             continue
-        pct = D.mark_value(m[1], m[2], tokens, size) / size - 1
+        if rule["free"]:
+            k, vs = m[1] * m[2], m[1] + c
+            pct = (D.sell(vs, k / vs, rem) + got) / size - 1
+        else:
+            pct = D.mark_value(m[1], m[2], tokens, size) / size - 1
         peak, trough = max(peak, pct), min(trough, pct)
         held = m[0] - t_in
-        if pct >= rule["take"]:
-            why = "take"; break
-        if pct <= rule["stop"]:
+        if rule["slow"]:
+            f1, _ = F.flow_at(marks, i)
+            slow_since = (slow_since if slow_since is not None else m[0]) if (f1 <= 0 and held >= 2) else None
+        if pct >= rule["take"] and not stake_out:
+            if not rule["free"]:
+                why = "take"; break
+            x = F.sell_for(m[1], m[2], c, rem, size)              # L4: sell just enough to take the stake back; the rest rides
+            got += D.sell(vs, k / vs, x)
+            c -= F.gross_out(m[1], m[2], c, x)
+            rem -= x
+            stake_out = True
+            continue
+        if pct <= rule["stop"] and not stake_out:
             why = "stop"; break
+        if rule["slow"] and slow_since is not None and m[0] - slow_since >= F.SLOW_S:
+            why = "slow"; break
         if held >= rule["hold"]:
             why = "time"; break
     if pct is None:
@@ -203,6 +249,7 @@ def main(days):
     paths = load_paths(days)
     if not paths:
         print("no paths yet"); return
+    annotate(paths)
     day_set = sorted(set(p["ts"][:10] for p in paths))
     rows, trades = [], {}
     for v in [CONTROL] + VARIANTS:
@@ -223,14 +270,15 @@ def main(days):
         ctrl_d = stats([t for t in (replay(p, CONTROL) for p in dp) if t])
         for v in VARIANTS:
             s = stats([t for t in (replay(p, rule_of(v)) for p in dp) if t])
+            beat = bool(s.get("n", 0) >= PROMOTE_N and ctrl_d.get("n", 0) >= PROMOTE_N and s["mean"] > ctrl_d["mean"])
             state.setdefault(v["name"], {})[d] = {"n": s.get("n", 0), "mean": s.get("mean"), "ctrl_n": ctrl_d.get("n", 0), "ctrl_mean": ctrl_d.get("mean"),
-                                                  "beat": bool(s.get("n", 0) >= PROMOTE_N and ctrl_d.get("n", 0) >= PROMOTE_N and s["mean"] > ctrl_d["mean"])}
+                                                  "beat": beat, "pos": bool(beat and s["mean"] > 0)}
     C.save_json(STATE, state)
     candidates = []
     for v in VARIANTS:
         hist = state.get(v["name"], {})
         last = [hist[d] for d in sorted(hist)[-PROMOTE_DAYS:]]
-        if len(last) == PROMOTE_DAYS and all(x["beat"] for x in last):
+        if len(last) == PROMOTE_DAYS and all(x.get("pos") for x in last):      # beat the control AND positive: a losing fork is no candidate
             candidates.append(v["name"])
 
     L = [f"# The population · {C.iso()} · {len(paths)} launches over {len(day_set)} day(s) ({', '.join(day_set)})", ""]
@@ -262,10 +310,12 @@ def main(days):
     if live["n"]:
         L.append(f"Live book, counted: n={live['n']} win={live['win']:.0%} mean={live['mean']:+.4f} sum={live['sum']:+.1f} SOL (the replay and the book should agree; a gap is a measurement lesson)")
     L.append("")
-    L.append(f"## Promotion rule: beat the control on mean net on each of the last {PROMOTE_DAYS} days with ≥ {PROMOTE_N} trades a day")
+    L.append(f"## Promotion rule: beat the control AND be positive on mean net on each of the last {PROMOTE_DAYS} days with ≥ {PROMOTE_N} trades a day")
     L.append(("Candidates for the next contract id (ruled through RI, never automatic): " + ", ".join(candidates)) if candidates else "No candidate yet.")
     streaks = {v["name"]: sum(1 for d in sorted(state.get(v["name"], {}))[-PROMOTE_DAYS:] if state[v["name"]][d]["beat"]) for v in VARIANTS}
-    L.append("Days beaten of the last " + str(PROMOTE_DAYS) + ": " + ", ".join(f"{k} {n}" for k, n in sorted(streaks.items(), key=lambda kv: -kv[1]) if n))
+    L.append("Days beaten of the last " + str(PROMOTE_DAYS) + " (beating a losing control only says a fork loses less): " + ", ".join(f"{k} {n}" for k, n in sorted(streaks.items(), key=lambda kv: -kv[1]) if n))
+    pos = {v["name"]: sum(1 for d in sorted(state.get(v["name"], {}))[-PROMOTE_DAYS:] if state[v["name"]][d].get("pos")) for v in VARIANTS}
+    L.append("Days beaten and positive: " + (", ".join(f"{k} {n}" for k, n in sorted(pos.items(), key=lambda kv: -kv[1]) if n) or "none"))
     text = "\n".join(L)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(text + "\n")

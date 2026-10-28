@@ -49,3 +49,32 @@ def test_first_buyer_entry_waits_for_real_sol():
 def test_book_constraint_caps_open_positions():
     ps = [dict(path([(2, 0.0), (62, 0.0)]), ts=f"2026-10-24T00:00:0{i}Z") for i in range(5)]
     assert len(P.book_constrained(ps, P.CONTROL, max_open=3)) == 3
+
+
+def test_free_trade_takes_the_stake_out_and_rides():
+    # a runner: +20 % at 6 s, then higher; the free trade sells the stake back at the take and the rest rides to the hold
+    p = path([(2, 0.0), (4, 5.0), (6, 12.0), (8, 20.0), (62, 20.0)])
+    ctrl = P.replay(p, P.CONTROL)
+    free = P.replay(p, P.rule_of({"free": True}))
+    assert ctrl["why"] == "take" and free["why"] == "time" and free["pct"] > ctrl["pct"]
+    # a flat curve never takes the stake out: the free trade is the control
+    flat = path([(t, 0.0) for t in range(2, 70, 2)])
+    assert abs(P.replay(flat, P.rule_of({"free": True}))["pct"] - P.replay(flat, P.CONTROL)["pct"]) < 1e-9
+
+
+def test_slow_exit_fires_after_ten_seconds_without_arrivals():
+    # SOL arrives for 6 s then stops: the control waits for the hold, L5b leaves 10 s after the flow dies
+    p = path([(2, 0.0), (4, 1.0), (6, 2.0)] + [(t, 2.0) for t in range(8, 70, 2)])
+    assert P.replay(p, P.CONTROL)["why"] == "time"
+    tr = P.replay(p, P.rule_of({"slow": True}))
+    assert tr["why"] == "slow" and tr["t_in"] < 30
+
+
+def test_annotate_reads_gate_and_class():
+    ps = [dict(path([(2, 0.0), (62, 0.0)]), ts=f"2026-10-24T00:00:{i:02d}Z") for i in range(3)]
+    ps.append(dict(path([(2, 0.0)]), name="official x", ts="2026-10-24T00:01:00Z"))
+    P.annotate(ps)
+    assert ps[0]["_gate"] == "unknown" and ps[0]["_class"] == "narrative" and ps[3]["_class"] == "celebrity"
+    assert P.replay(ps[0], P.rule_of({"gate": "live"})) is None
+    assert P.replay(ps[3], P.rule_of({"narrative": True})) is None
+
