@@ -28,8 +28,10 @@ import population as P    # noqa: E402
 
 OUT = C.path("out", "five.md")
 STATE = C.path("state", "five_replay.json")
-# the control filled at the first on-chain mark instead of the message's reserves (population.replay picks the first mark at or after
-# `delay`; any positive delay under the first mark's age selects it). Both books are shown at both fills; see "The fill" below.
+# the control filled at the first on-chain mark, the state nearest the one the counted book fills at (duval.Book.enter reads the curve on
+# chain at decision; population.replay picks the first mark at or after `delay`, and any positive delay under the first mark's age selects
+# it). Ruled 2026-10-28 (decisions/2026-10-28-ri04-fill-grader): this is the headline fill for both books; the message's reserves are a
+# counterfactual, shown and labelled, because on the 49 % of counted entries an earlier buyer took, it books that buyer's pump as the book's.
 FIRST_MARK = dict(P.CONTROL, name="control at first mark", delay=1e-9)
 
 
@@ -130,7 +132,7 @@ def main(days):
             continue
         p_terms = list(p["match"])
         alive, gate = (lambda ta: any(terms.alive(x, ta) for x in p_terms)), (lambda ta: meta.state(ta)[0])
-        tr = F.run_position(F.entry_marks(p), 0, size, k5, alive, gate, t)       # filled at the message's reserves, as the counted book is
+        tr = F.run_position(F.entry_marks(p), 0, size, k5, alive, gate, t)       # filled at the message's reserves: the counterfactual, not the counted book's fill
         if not tr:
             continue
         tr["first_mark"] = F.run_position(p["marks"], 0, size, k5, alive, gate, t)   # the same position filled at the first on-chain mark
@@ -143,21 +145,33 @@ def main(days):
             stake = F.SIZE_SOL / 2
 
     ctrl_all = [r["ctrl"] for _, r in reads if r["ctrl"]]
+    ctrl_all_fm = [r["ctrl_fm"] for _, r in reads if r.get("ctrl_fm")]
+    five_fm = [t["first_mark"] for t in five_trades if t.get("first_mark")]
     day_set = sorted(set(p["ts"][:10] for p in paths))
     L = [f"# The 5 % loop on the tape · {C.iso()} · {len(paths)} launches over {len(day_set)} day(s) ({', '.join(day_set)})", ""]
-    L += ["## Books (same tape, same fees)", "", "| book | n | win | mean SOL | sum SOL | PF | med % |", "|---|---|---|---|---|---|---|"]
-    L.append(row("RI-04 control (all its entries)", stats(ctrl_all)))
-    L.append(row("RI-05 the 5 % loop (max 3 open)", stats(five_trades)))
+    L += ["## Books (same tape, same fees)", "",
+          "The headline fill is the first on-chain mark: the state nearest the one the counted book fills at (duval.Book.enter reads the curve at "
+          "decision). The message-reserve rows are the counterfactual: on the half of entries an earlier buyer took, they book that buyer's pump "
+          "as the book's own (ruled 2026-10-28, decisions/2026-10-28-ri04-fill-grader).", "",
+          "| book | n | win | mean SOL | sum SOL | PF | med % |", "|---|---|---|---|---|---|---|"]
+    L.append(row("RI-04 control · first mark (the fill the counted book gets)", stats(ctrl_all_fm)))
+    L.append(row("RI-05 the 5 % loop · first mark", stats(five_fm)))
+    L.append(row("RI-04 control · message reserves (counterfactual)", stats(ctrl_all)))
+    L.append(row("RI-05 the 5 % loop · message reserves (counterfactual, max 3 open)", stats(five_trades)))
     for k in ("full", "scalp"):
-        L.append(row(f"  RI-05 {k}", stats([t for t in five_trades if t["kind"] == k])))
-    L.append(row("  RI-05 full, stake taken out", stats([t for t in five_trades if t["kind"] == "full" and t["stake_out"]])))
+        L.append(row(f"  RI-05 {k} · message reserves", stats([t for t in five_trades if t["kind"] == k])))
+    L.append(row("  RI-05 full, stake taken out · message reserves", stats([t for t in five_trades if t["kind"] == "full" and t["stake_out"]])))
     L.append("")
     # per day
-    L += ["### By day", "", "| day | control n | control mean | RI-05 n | RI-05 mean | RI-05 sum |", "|---|---|---|---|---|---|"]
+    L += ["### By day (first mark first; message reserves in brackets)", "",
+          "| day | control n | control mean | RI-05 n | RI-05 mean | RI-05 sum |", "|---|---|---|---|---|---|"]
     for d in day_set:
-        c = stats([r["ctrl"] for p, r in reads if r["ctrl"] and p["ts"][:10] == d])
-        f = stats([t for t in five_trades if t["ts"][:10] == d])
-        L.append(f"| {d} | {c['n']} | {c.get('mean', 0):+.4f} | {f['n']} | {f.get('mean', 0):+.4f} | {f.get('sum', 0):+.1f} |")
+        c = stats([r["ctrl_fm"] for p, r in reads if r.get("ctrl_fm") and p["ts"][:10] == d])
+        cm = stats([r["ctrl"] for p, r in reads if r["ctrl"] and p["ts"][:10] == d])
+        f = stats([t["first_mark"] for t in five_trades if t.get("first_mark") and t["ts"][:10] == d])
+        fm = stats([t for t in five_trades if t["ts"][:10] == d])
+        L.append(f"| {d} | {c['n']} | {c.get('mean', 0):+.4f} ({cm.get('mean', 0):+.4f}) | {f['n']} | {f.get('mean', 0):+.4f} ({fm.get('mean', 0):+.4f}) | "
+                 f"{f.get('sum', 0):+.1f} ({fm.get('sum', 0):+.1f}) |")
     L.append("")
     # the reads as hypotheses on the control
     L += ["## Each rule as a hypothesis on RI-04's own loop (control trades split by the loop's read at entry)", ""]
@@ -202,8 +216,10 @@ def main(days):
     # the fill: both books at both entry states. Ruled 2026-10-27 (decisions/2026-10-27-ri05-stop-stage): the stop was never the
     # lever; the entry state was. The convention that decides both books stays in the report, not in a constant.
     L += ["## The fill (both books, both entry states)", "",
-          "RI-04's control and the counted book fill at the create message's reserves; a buyer who lands after the first second fills at the first on-chain mark. "
-          "Whether the message fill is attainable is the open first-buyer question both books share (U01). On the launches RI-05 entered:", "",
+          "The counted book fills at the curve state read on chain at decision (duval.Book.enter), which the first on-chain mark approximates; the replays' "
+          "message-reserve fill is a counterfactual. Joined to the paths on 2026-10-28, 51 % of counted entries did get the message state and lost (PF 0.71); "
+          "the other 49 % filled after an earlier buyer, and refilling those at the message state is the whole message-fill edge (+208.8 SOL on 562, PF 9.3). "
+          "What stays open (U01) is only whether a real buy lands inside the first second; it no longer decides the verdict. On the launches RI-05 entered:", "",
           "| book · fill | n | win | mean SOL | sum SOL | PF | med % |", "|---|---|---|---|---|---|---|"]
     ent = [t for t in five_trades]
     ctrl_on = [t["read"]["ctrl"] for t in ent if t["read"].get("ctrl")]
@@ -214,7 +230,6 @@ def main(days):
     L.append(row("RI-05 · message reserves (the book above)", stats(ent)))
     L.append(row("RI-05 · first mark", stats(fm)))
     L.append("")
-    ctrl_all_fm = [r["ctrl_fm"] for _, r in reads if r.get("ctrl_fm")]
     L.append(f"Over every control entry: message reserves {stats(ctrl_all)['n']} trades {stats(ctrl_all).get('sum', 0):+.1f} SOL (PF {stats(ctrl_all).get('pf', 0):.2f}); "
              f"first mark {stats(ctrl_all_fm)['n']} trades {stats(ctrl_all_fm).get('sum', 0):+.1f} SOL (PF {stats(ctrl_all_fm).get('pf', 0):.2f}).")
     L.append("")

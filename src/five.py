@@ -115,11 +115,13 @@ def ran(p):
 
 
 def entry_marks(p):
-    """The path with the create message's reserves prepended as mark 0: the state RI-04's control (ops/population.py) and the live
-    counted book (duval.Book.enter) fill at. RI-05 must fill at the same state or the two books are not comparable: on the tape of
-    2026-10-23..27 the same 204 entries made -4.9 SOL filled at the first on-chain mark and +10.2 SOL filled here, and the stop
-    level mattered only at the first mark (decisions/2026-10-27-ri05-stop-stage). Whether this fill is attainable is the open
-    first-buyer question both books share; the replay shows both fills side by side."""
+    """The path with the create message's reserves prepended as mark 0: the counterfactual fill. It is NOT where the live counted
+    book fills: duval.Book.enter fills at the curve state read on chain at decision (Amendment 1), which the first on-chain mark
+    approximates. On 2026-10-28 the join of paper.jsonl to the paths showed 51 % of counted entries got the message state and lost
+    (PF 0.71); the other 49 % filled after an earlier buyer, and refilling them here books that buyer's pump as the book's own
+    (+208.8 SOL on 562 entries, PF 9.3). The replay therefore headlines the first-mark fill for both books and shows this state as
+    the labelled counterfactual (decisions/2026-10-28-ri04-fill-grader; the 10-27 ruling's statement that the counted book fills
+    here was wrong)."""
     marks = p["marks"]
     if not marks:
         return marks
@@ -433,7 +435,7 @@ class Shadow:
             kind, size, read = decide(p, tr["t0"], self.meta, self.terms, self.comps, open_terms, self.stake)
             if not kind:
                 continue
-            e = [0.0, tr["v0"][0], tr["v0"][1], tr["marks"][0][3]]     # the message's reserves: where the counted book fills (entry_marks)
+            e = [0.0, tr["v0"][0], tr["v0"][1], tr["marks"][0][3]]     # the message's reserves: the counterfactual fill, not the counted book's (entry_marks)
             tokens = D.buy(e[1], e[2], size)
             if tokens <= 0:
                 continue
