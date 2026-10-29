@@ -36,18 +36,42 @@ def append(file, rec):
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
+def _corrupt(file, what):
+    """A hard crash leaves NUL-filled files and torn lines (2026-10-09, 10-24, 10-28). They are measurement damage, not data:
+    log the skip to monitor/journal-errors.log and carry on, instead of dying at startup until an operator repairs by hand."""
+    try:
+        append(path("monitor", "journal-errors.log"), {"where": "loader", "err": f"{what} in {os.path.relpath(file, ROOT)}"[:200]})
+    except Exception:
+        pass
+
+
 def read_jsonl(file):
     if not os.path.exists(file):
         return []
-    with open(file, encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+    rows, skipped = [], 0
+    with open(file, encoding="utf-8", errors="replace") as f:
+        for l in f:
+            if not l.strip() or l[0] == "\x00":
+                skipped += l[:1] == "\x00"
+                continue
+            try:
+                rows.append(json.loads(l))
+            except ValueError:
+                skipped += 1
+    if skipped:
+        _corrupt(file, f"skipped {skipped} unparseable line(s)")
+    return rows
 
 
 def load_json(file, default):
     if not os.path.exists(file):
         return default
-    with open(file, encoding="utf-8") as f:
-        return json.load(f)
+    with open(file, encoding="utf-8", errors="replace") as f:
+        raw = f.read()
+    if not raw.strip("\x00 \r\n\t"):
+        _corrupt(file, f"NUL-filled or empty file ({len(raw)} bytes), read as missing")
+        return default
+    return json.loads(raw)
 
 
 def save_json(file, obj):
