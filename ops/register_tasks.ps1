@@ -4,6 +4,8 @@
 #   rich - FIVE         : daily 05:50 local: RI-05, the 5 % loop replayed on the tape beside RI-04's control -> out/five.md
 #   rich - FORESIGHT    : daily 06:05 local: lessons owed, tomorrow's market forecasts, digest, update the Rich Foresight Doc (ops/digest.ps1)
 #   rich - JOURNAL     : every 5 minutes: shadow marks, forecast resolution, out/journal.md (ops/journal.py tick)
+#   rich - ACADEMY     : at logon and every 10 minutes, keeps the academy loop alive (ops/academy.py --loop: the arena, the search,
+#                        the ladder and the review every 15 minutes on the home and VPS tapes; observation only)
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $vbs = Join-Path $env:USERPROFILE "ops\run-hidden.vbs"
 $guardArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"$root\ops\sensor_guard.ps1`""
@@ -24,4 +26,7 @@ $fiveArgs = "//B //Nologo `"$vbs`" `"python`" `"$root\ops\five_replay.py`" --day
 Register-ScheduledTask -TaskName "rich - FIVE" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $fiveArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 05:50) -Settings $settings -Force | Out-Null
 $digArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"$root\ops\digest.ps1`""
 Register-ScheduledTask -TaskName "rich - FORESIGHT" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $digArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 06:05) -Settings $settings -Force | Out-Null
+$acadArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"$root\ops\academy.ps1`""
+$acadTriggers = @((New-ScheduledTaskTrigger -AtLogOn), (New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 10)))
+Register-ScheduledTask -TaskName "rich - ACADEMY" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $acadArgs -WorkingDirectory $root) -Trigger $acadTriggers -Settings $settings -Force | Out-Null
 Get-ScheduledTask -TaskName "rich - *" | ForEach-Object { "{0,-22} {1}" -f $_.TaskName, $_.State }

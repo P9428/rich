@@ -13,6 +13,10 @@ Wallet: ~/.rich/wallet.json (outside the repo; created 2026-10-28; key never pri
 MIN_BALANCE and stops when the buys are done, the attempts are spent, or the balance falls under the floor.
 
   python ops/fill_probe.py [--buys 5] [--size 0.01] [--dry]     --dry: everything but the send (and no sell)
+  python ops/fill_probe.py --cell <id> --size <rung> [--dry]    the academy: run a roster cell's universe, entry and exit instead of the
+                                                                 control's (state/academy/roster.json). A real send needs the cell on a
+                                                                 rung of state/academy/ladder.json (put there by a ruling, never by code)
+                                                                 at exactly that rung's size; otherwise the run is dry.
 """
 import argparse
 import asyncio
@@ -29,11 +33,14 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 import common as C   # noqa: E402
 import duval as D    # noqa: E402
 import websockets    # noqa: E402
+from academy import cells as CE   # noqa: E402
 from solders.keypair import Keypair                 # noqa: E402
 from solders.transaction import VersionedTransaction  # noqa: E402
 
 WALLET = os.path.expanduser("~/.rich/wallet.json")
 PROBE = C.path("journal", "probe.jsonl")
+ROSTER = C.path("state", "academy", "roster.json")
+LADDER = C.path("state", "academy", "ladder.json")
 OUT = C.path("out", "probe.md")
 TRADE_LOCAL = "https://pumpportal.fun/api/trade-local"
 SLIPPAGE = 50            # percent; wide on purpose: the question is where the tx lands, not whether a tight limit rejects it
@@ -178,8 +185,32 @@ def recompute(r):
     return r
 
 
+def load_cell(cid):
+    """A roster cell by id, or the control."""
+    if not cid or cid == "control":
+        return CE.make(CE.CONTROL["name"])
+    row = (C.load_json(ROSTER, {}) or {}).get(cid)
+    if not row:
+        raise SystemExit(f"no cell {cid} in {ROSTER}")
+    return row["cell"]
+
+
+def cell_may_send(cell, size):
+    """The human gate: a real send needs the cell on a rung of the ladder at exactly that rung's size."""
+    if cell["id"] == CE.make(CE.CONTROL["name"])["id"]:
+        return True, "the control (the contract's own rules)"
+    from academy import rungs as RU
+    s = (C.load_json(LADDER, {}) or {}).get(cell["id"])
+    if not s or s.get("status") != "rung":
+        return False, "the cell is not on a rung of the ladder (a ruling under decisions/ puts it there)"
+    if abs(RU.RUNGS[s["rung"]] - size) > 1e-9:
+        return False, f"the cell is at rung {s['rung']} ({RU.RUNGS[s['rung']]} SOL), not {size} SOL"
+    return True, f"rung {s['rung']} by {s.get('promoted_by')}"
+
+
 class Probe:
-    def __init__(self, buys, size, dry, any_launch=False):
+    def __init__(self, buys, size, dry, any_launch=False, cell=None):
+        self.cell = cell or CE.make(CE.CONTROL["name"])
         self.any = any_launch and dry           # dry runs only: exercise the path on any plain launch, news match or not
         self.kp = load_wallet()
         self.pub = self.kp.pubkey()
@@ -224,8 +255,19 @@ class Probe:
     def on_launch(self, m, t):
         self.refresh()
         name, sym, mint = m.get("name") or "", m.get("symbol") or "", m["mint"]
-        hits = D.match(name, sym, self.terms) or (["(any: dry run)"] if self.any else [])
-        if not hits or not mint.endswith("pump") or m.get("pool") not in (None, "pump") or m.get("is_mayhem_mode") or not m.get("bondingCurveKey"):
+        u = self.cell["universe"]
+        hits = D.match(name, sym, self.terms)
+        if u["filter"] == "matched" and len(hits) < max(1, u.get("nmatch_min") or 1):
+            hits = ["(any: dry run)"] if self.any else []
+        elif u["filter"] == "unmatched" and hits:
+            return
+        elif u["filter"] == "all":
+            hits = hits or ["(all launches)"]
+        if not hits or (u["pump_only"] and not mint.endswith("pump")) or m.get("pool") not in (None, "pump") or m.get("is_mayhem_mode") or not m.get("bondingCurveKey"):
+            return
+        if u.get("init_max") is not None and (m.get("solAmount") or 0) > u["init_max"]:
+            return
+        if u.get("hours") and not (u["hours"][0] <= time.gmtime(t).tm_hour < u["hours"][1]):
             return
         if not self.busy.acquire(blocking=False):
             return                                              # one position at a time: the measurement stays clean
@@ -244,7 +286,10 @@ class Probe:
         key = m["bondingCurveKey"]
         v0s, v0t = float(m.get("vSolInBondingCurve") or 0), float(m.get("vTokensInBondingCurve") or 0)
         row = {"ts": C.iso(t), "mint": mint, "name": name[:60], "symbol": sym[:20], "match": hits[:4], "curve": key, "create_sig": m.get("signature"),
-               "msg": {"v_sol": v0s, "v_tok": v0t}, "size": self.size, "dry": self.dry, "landed": False}
+               "msg": {"v_sol": v0s, "v_tok": v0t}, "size": self.size, "dry": self.dry, "landed": False, "cell": self.cell["id"]}
+        e = self.cell["entry"]
+        if e.get("delay"):
+            time.sleep(max(0.0, t + e["delay"] - time.time()))       # the cell enters at the first mark at or after its delay
         # the engine's chain read at decision, one retry
         chain, slot_read = None, None
         for _ in range(2):
@@ -252,6 +297,19 @@ class Probe:
             if chain:
                 break
             time.sleep(0.5)
+        if chain and e.get("wait_buy"):                                 # the first mark inside 10 s showing an outside buy
+            r0 = chain["r_sol"]
+            while chain and chain["r_sol"] <= r0 + 1e-6 and time.time() - t < 10:
+                time.sleep(D.MARK_EVERY)
+                chain, slot_read = read_curve(key)
+            if not chain or chain["r_sol"] <= r0 + 1e-6:
+                chain = None
+        if chain and e.get("up"):                                       # the entry mark above the mark before it: two reads
+            prev = chain["v_sol"]
+            time.sleep(D.MARK_EVERY)
+            chain, slot_read = read_curve(key)
+            if chain and not chain["v_sol"] > prev:
+                chain = None
         t_read = time.time()
         row["read"] = {"t_after_create": round(t_read - t, 2), "slot": slot_read, "chain": chain}
         why = []
@@ -262,8 +320,14 @@ class Probe:
         elif not (0.5 <= chain["v_sol"] / max(v0s, 1e-9) <= 2.0):
             why.append("non-standard curve")
         mcap = (chain["v_sol"] / chain["v_tok"] * 1e9 * self.sol_usd) if (chain and self.sol_usd) else None
-        if mcap is None or mcap >= D.MCAP_MAX_USD:
+        if mcap is None or mcap >= self.cell["universe"]["mcap_max"]:
             why.append(f"mcap {mcap}")
+        if chain and e.get("rsol_min") is not None and chain["r_sol"] < e["rsol_min"]:
+            why.append(f"outside SOL {chain['r_sol']:.3f} under {e['rsol_min']}")
+        if chain and e.get("rsol_max") is not None and chain["r_sol"] > e["rsol_max"]:
+            why.append(f"outside SOL {chain['r_sol']:.3f} over {e['rsol_max']}")
+        if chain and e.get("mom_min") is not None and (chain["v_sol"] / max(v0s, 1e-9) - 1) < e["mom_min"]:
+            why.append(f"price move {chain['v_sol'] / max(v0s, 1e-9) - 1:+.3f} under {e['mom_min']}")
         if time.time() - t > D.ENTRY_WINDOW_S:
             why.append("past the window")
         if why:
@@ -280,7 +344,9 @@ class Probe:
         # marks every 2 s from the send, the engine's exits on them
         marks = []
         tx = None
-        t_end = t_sent + D.HOLD_S + 5
+        x = self.cell["exit"]
+        peak = 0.0
+        t_end = t_sent + x["hold"] + 5
         pm_msg = model_price(v0s, v0t, self.size)
         pm_read = model_price(chain["v_sol"], chain["v_tok"], self.size)
         while time.time() < t_end:
@@ -304,7 +370,9 @@ class Probe:
                 last = marks[-1]
                 pct = D.mark_value(last[1], last[2], tx["tok_delta"], self.size) / self.size - 1
                 held = now - t_sent
-                why = "take" if pct >= D.TAKE else "stop" if pct <= D.STOP else "time" if held >= D.HOLD_S else None
+                peak = max(peak, pct)
+                why = "take" if pct >= x["take"] else "stop" if pct <= x["stop"] else \
+                    "trail" if (x.get("trail") is not None and peak > 0 and pct <= peak - x["trail"]) else "time" if held >= x["hold"] else None
                 if why:
                     row["exit"] = {"why": why, "pct_at_mark": round(pct, 4), "held_s": round(held, 1), "mark": last}
                     break
@@ -385,6 +453,7 @@ if __name__ == "__main__":
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--any", action="store_true", help="dry runs only: ignore the news match to exercise the path")
     ap.add_argument("--report", action="store_true", help="rewrite out/probe.md from journal/probe.jsonl; no feed, no send")
+    ap.add_argument("--cell", default=None, help="an academy roster cell id (state/academy/roster.json) or 'control'")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     if a.report:
@@ -392,4 +461,10 @@ if __name__ == "__main__":
         pr.report()
         print(open(OUT, encoding="utf-8").read())
         raise SystemExit(0)
-    raise SystemExit(asyncio.run(Probe(a.buys, a.size, a.dry, a.any).run()))
+    cell = load_cell(a.cell)
+    ok, why = cell_may_send(cell, a.size)
+    if not ok and not a.dry:
+        log(f"cell {cell['id']} ({CE.describe(cell)}): {why}; running DRY")
+        a.dry = True
+    log(f"cell {cell['id']}: {CE.describe(cell)} · {why}")
+    raise SystemExit(asyncio.run(Probe(a.buys, a.size, a.dry, a.any, cell=cell).run()))
