@@ -1,0 +1,3 @@
+# Files that run on the VPS (Linux) must stay LF; this machine has core.autocrlf on.
+ops/vps/* text eol=lf
+*.sh text eol=lf
