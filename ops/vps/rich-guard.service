@@ -1,0 +1,6 @@
+[Unit]
+Description=rich engine guard: restart rich-duval when stale or blind
+
+[Service]
+Type=oneshot
+ExecStart=/srv/rich/venv/bin/python /srv/rich/ops/rich_guard.py

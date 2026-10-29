@@ -8,7 +8,9 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $vbs = Join-Path $env:USERPROFILE "ops\run-hidden.vbs"
 $guardArgs = "//B //Nologo `"$vbs`" `"powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"$root\ops\sensor_guard.ps1`""
 $readArgs = "//B //Nologo `"$vbs`" `"python`" `"$root\ops\readout.py`""
-$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable
+# 2026-10-29: the machine is a Lenovo laptop. The default settings disallowed a start on battery and stopped a running task when the
+# power cord came out, so the guard neither revived nor survived the engine on battery (decisions/2026-10-29-checklist-tape-outage).
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $guardTriggers = @((New-ScheduledTaskTrigger -AtLogOn), (New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)))
 Register-ScheduledTask -TaskName "rich - SENSOR GUARD" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $guardArgs) -Trigger $guardTriggers -Settings $settings -Force | Out-Null
 Register-ScheduledTask -TaskName "rich - READOUT" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument $readArgs -WorkingDirectory $root) -Trigger (New-ScheduledTaskTrigger -Daily -At 05:30) -Settings $settings -Force | Out-Null

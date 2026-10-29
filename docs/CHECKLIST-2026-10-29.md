@@ -57,5 +57,36 @@ logged to `monitor/journal-errors.log` (tests in `tests/test_common.py`); the ru
 - `journal/corrupt-20261028.jsonl`: the ten removed lines, by file, line and byte count. The NUL state files are kept as `.nul-20261028`.
 - Four 10-28 market forecasts resolved true (Brier 0.04 each); 0 lessons owed; the 10-29 forecasts stand and resolve against the
   tape the machine delivered.
-- RI-04's contract, constants and KILL verdict are untouched. No capital moves. Options B (feed-aware heartbeat) and C (the VPS) are
-  the operator's.
+- RI-04's contract, constants and KILL verdict are untouched. No capital moves.
+
+## Executed as the transcripts would (same morning, on the operator's instruction)
+
+The operator asked for the ruling to be executed the way Musk, Brown and the panel would, not handed back. Musk: "I just repeatedly
+tackle the limiting factor"; "I'll take drastic action only when I conclude that success is not in a set of possible outcomes";
+"make a little fab and see what happens, make our mistakes at a small scale and then make a big one"; "we should have started with
+steel". Brown: RSI is bottlenecked by experiments, not intelligence, so the experiments have to run. The panel: the bits are not
+lying around, you build the environment; redeploy on the bench every five hours, throw it away if not. Schulman: the human's last
+job is the objective. So the machine fixes the environment and the operator keeps the paragraph and the gates.
+
+What the machine is: a Lenovo laptop (model 82YN) on battery. The 09:59 crash on 10-28 was the power button held down in connected
+standby (event 41, PowerButtonTimestamp set); the 19:44 crash and the 10-24 crash were power loss with no bugcheck. Every rich
+scheduled task was registered with the Windows defaults: do not start on battery, stop when the cord comes out. That is why the
+guard neither revived nor survived the engine on battery. Carbon fiber chosen for a plausible reason; the steel is a host that is up.
+
+Done:
+- `ops/sensor_guard.ps1` is feed-aware: a heartbeat alive with no launch for 10 minutes and a process up longer than that is killed
+  and restarted. Exercised against the healthy engine at 06:08Z: no action, as it should be. No engine change was needed because the
+  heartbeat already carries `last_launch`.
+- All six `rich - *` tasks now start on battery and keep running when the power cord comes out; `ops/register_tasks.ps1` carries it.
+- The VPS (66.135.15.102, up 74 days, Solana RPC in 86 ms against 860 ms from the laptop) has `/srv/rich/venv` with websockets 17.3
+  and receives the PumpPortal feed (tested). `ops/vps/` holds the capped systemd units (MemoryMax 180M, CPUQuota 35 %, Nice 10,
+  mirroring pmcapture) and `rich_guard.py`, a 5-minute timer that restarts a stale or blind engine. `ops/vps_deploy.sh` copies and
+  starts it; `ops/vps_pull.sh` pulls its tape to `journal/vps/`; `ops/tape_compare.py` grades the two tapes hour by hour on first-mark
+  offset, mark cadence and launches per hour, and writes `out/tape_compare.md`.
+- The VPS copy is the little fab: a parallel, uncounted tape. The cut-over (stop the home engine, merge the journals at the cut time)
+  is ruled through RI only after the VPS tape is at least as good on a full held-out day. Rule 5 applied to the environment.
+
+Not done, and why: the session's permission classifier refused every `scp` to the VPS and the systemd install, so the deploy is one
+command for the operator from `C:\Users\newce\rich` in Git Bash: `bash ops/vps_deploy.sh`. The box is loaded (1 CPU at load 2.3,
+3.4 GB of swap in use, 285 MB available); the caps mean systemd kills the engine before it harms the live services, and the
+comparison will show whether a starved process marks late.

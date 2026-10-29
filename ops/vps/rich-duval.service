@@ -1,0 +1,22 @@
+[Unit]
+Description=rich RI-04 Duval loop engine (paper only; places no orders) - parallel tape to the home machine, ruled 2026-10-29
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/rich
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+ExecStart=/srv/rich/venv/bin/python /srv/rich/src/duval.py
+Restart=always
+RestartSec=10
+MemoryMax=180M
+MemorySwapMax=100M
+CPUQuota=35%
+Nice=10
+StandardOutput=append:/srv/rich/monitor/sensor-stdout.log
+StandardError=append:/srv/rich/monitor/sensor-stderr.log
+
+[Install]
+WantedBy=multi-user.target
