@@ -38,16 +38,67 @@ def files_of(tape):
             "out": C.path("out", t["out"]), "paths": t["paths"], "record": C.path(*t["state"], "record")}
 
 
-def pull_vps():
-    """Today's VPS tape, re-pulled when the local copy is older than PULL_EVERY (read-only scp; ops/vps_pull.sh)."""
+def bash_exe():
+    """Git's bash by its own path. A bare 'bash' goes through CreateProcess, which searches System32 before PATH, and System32 holds
+    WSL's bash: it cannot open the repo's Windows path (rc 127, every pull from 10-30 18:31Z to 10-31 06:17Z), and its own scp waits
+    on a host-key prompt nobody answers (a ten-minute hang a tick) while the VPS logged a full day the home tape missed."""
+    if os.name != "nt":
+        return "bash"
+    for p in (r"C:\Program Files\Git\usr\bin\bash.exe", r"C:\Program Files\Git\bin\bash.exe"):
+        if os.path.exists(p):
+            return p
+    return "bash"
+
+
+def pull_vps(force=False):
+    """Today's VPS tape, re-pulled when the local copy is older than PULL_EVERY (read-only scp; ops/vps_pull.sh). The script is named
+    relative to ROOT and run by Git's bash with stdin closed, so a prompt fails at once; a non-zero rc carries the last output line."""
     today = os.path.join(TAPES["vps"]["paths"], time.strftime("%Y-%m-%d", time.gmtime()) + ".jsonl")
-    if os.path.exists(today) and time.time() - os.path.getmtime(today) < PULL_EVERY:
+    if not force and os.path.exists(today) and time.time() - os.path.getmtime(today) < PULL_EVERY:
         return "vps tape fresh"
     try:
-        r = subprocess.run(["bash", os.path.join(ROOT, "ops", "vps_pull.sh")], cwd=ROOT, capture_output=True, text=True, timeout=600)
-        return f"vps pull rc={r.returncode}"
+        r = subprocess.run([bash_exe(), "ops/vps_pull.sh"], cwd=ROOT, capture_output=True, text=True, timeout=600, stdin=subprocess.DEVNULL)
+        lines = ((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()
+        bad = [x for x in lines if "no paths for" in x or "rc " in x or "Warning" in x or "failed" in x]
+        tail = (bad or lines)[-1:] if (r.returncode or bad) else []
+        return f"vps pull rc={r.returncode}" + (f" ({tail[0][:120]})" if tail else "")
     except Exception as e:
         return f"vps pull failed {e!r}"
+
+
+def due(n, state, roster, force=False):
+    """Whether a search round is due: forced, an empty roster, or the record grown by PACE launches since the last round. A record
+    that shrank (a day fell out of the --days window, so the fit period is a new contract) counts as grown by its whole length;
+    without this the home tape read 'grew by -14596' on 10-31 and no round could fire until 14,646 new launches."""
+    grown = n - int(state.get("launches_at_round", 0))
+    if grown < 0:
+        grown = n
+    return bool(force or not roster or grown >= S.PACE), grown
+
+
+_LOCK = None
+
+
+def single_instance(lock_file):
+    """Holds an OS lock on lock_file for the life of the process; None when another process holds it. The lock dies with the process,
+    so a crash leaves nothing stale. Two loops started 7 s apart by the guard on 10-30 tore roster.json between them for a day."""
+    global _LOCK
+    f = open(lock_file, "a+")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            if f.tell() == 0:
+                f.write("academy loop lock\n"); f.flush()
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return None
+    _LOCK = f
+    return f
 
 
 def log(line):
@@ -57,10 +108,10 @@ def log(line):
         f.write(msg + "\n")
 
 
-def tick(days, force_round=False, seed=None, tape="home"):
+def tick(days, force_round=False, seed=None, tape="home", pull=False):
     t0 = time.time()
     F = files_of(tape)
-    pulled = pull_vps() if tape == "vps" else ""
+    pulled = pull_vps(force=pull) if tape == "vps" else ""
     R.RDIR = F["record"]
     rec, pins, labels = R.load(days, F["paths"])
     if rec is None or len(set(labels)) < 2:
@@ -70,9 +121,9 @@ def tick(days, force_round=False, seed=None, tape="home"):
     ladder = C.load_json(F["ladder"], {})
     fills = AN.own_fills(rec)
     n = int(len(rec["mint"]))
-    grown = n - state.get("launches_at_round", 0)
+    fire, grown = due(n, state, roster, force_round)
     scored = 0
-    if force_round or not roster or grown >= S.PACE:
+    if fire:
         state["round"] = state.get("round", 0) + 1
         roster, scored = S.run_round(rec, labels, roster, state["round"], fills, seed=seed)
         roster = S.trim(roster)
@@ -110,12 +161,16 @@ def main():
     ap.add_argument("--round", action="store_true", help="force a search round this tick")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--tape", choices=("home", "vps", "both"), default="both")
+    ap.add_argument("--pull", action="store_true", help="re-pull the VPS tape this tick even if the local copy is fresh")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
+    if a.loop and single_instance(C.path("monitor", "academy.lock")) is None:
+        log("another academy loop holds monitor/academy.lock; this one exits (two loops tore the state files on 10-30/31)")
+        return
     while True:
         for tape in (("home", "vps") if a.tape == "both" else (a.tape,)):
             try:
-                tick(a.days, force_round=a.round, seed=a.seed, tape=tape)
+                tick(a.days, force_round=a.round, seed=a.seed, tape=tape, pull=a.pull)
             except Exception as e:
                 log(f"[{tape}] tick error {e!r}\n{traceback.format_exc()[-1500:]}")
         if not a.loop:

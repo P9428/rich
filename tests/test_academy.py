@@ -134,3 +134,34 @@ def test_split_is_strictly_later():
     labels = np.array(["d1", "d1", "d2", "d3"])
     fit, held, fit_days, held_day = S.split(labels)
     assert held_day == "d3" and fit_days == ["d1", "d2"] and held.sum() == 1 and fit.sum() == 3
+
+
+def _ops_academy():
+    import importlib.util
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ops", "academy.py")
+    spec = importlib.util.spec_from_file_location("ops_academy", p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_round_is_due_when_the_window_slides():
+    """10-31: the record shrank by a day (10-26 left the window) and 'grew by -14596' blocked every round; a shrunk record is a new fit."""
+    OPS = _ops_academy()
+    fire, grown = OPS.due(38839, {"launches_at_round": 53435}, {"c": 1})
+    assert fire and grown == 38839
+    fire, grown = OPS.due(100, {"launches_at_round": 80}, {"c": 1})
+    assert not fire and grown == 20
+    assert OPS.due(80 + S.PACE, {"launches_at_round": 80}, {"c": 1})[0]
+    assert OPS.due(10, {"launches_at_round": 10}, {})[0]          # an empty roster always scores
+    assert OPS.due(10, {"launches_at_round": 10}, {"c": 1}, force=True)[0]
+
+
+def test_second_loop_is_refused_the_lock(tmp_path):
+    OPS = _ops_academy()
+    lock = str(tmp_path / "academy.lock")
+    first = OPS.single_instance(lock)
+    assert first is not None
+    assert OPS.single_instance(lock) is None
+    first.close()
+    assert OPS.single_instance(lock) is not None

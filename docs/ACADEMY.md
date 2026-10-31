@@ -69,3 +69,14 @@ measured rung at a time or to say that it cannot.
 
 The paragraph, the gates, the ruling that puts a cell on rung 0, the real legs (`ops/fill_probe.py --cell <id> --size <rung>`),
 the VPS cut-over, capital. Forecast 65f222a6421e (2026-10-29) gives 0.15 to an eligible cell by 2026-11-05; a miss owes a lesson.
+
+## 2026-10-31: the link, the lock and the gate (docs/CHECKLIST-2026-10-31.md)
+
+The VPS tape never reached the page from 10-30 18:31Z to 10-31 06:17Z: a bare `bash` in `subprocess.run` resolves through
+CreateProcess, which searches System32 before PATH and finds WSL's bash (rc 127 on the repo's Windows path; a ten-minute hang on
+its scp's host-key prompt once the path was relative). Two loops started 7 s apart by the task tore the state files for a day, and
+the home round gate read "grew by -14596" after a day left the window. Since then: `bash_exe` names Git's bash and the pull runs with
+stdin closed, a failing pull prints its reason on the page, `--pull` forces one on a tick; `single_instance` holds
+`monitor/academy.lock` and a second loop exits; `due` fires a round when the record shrank; `ops/vps_pull.sh` puts `/usr/bin` on
+PATH and runs scp in BatchMode. Verified from PowerShell, the task's environment. The first full held-out day on the VPS tape
+(round 2, 421 cells on 26,677 launches) moved the limiting factor from SENSOR to SEARCH: 0 cells positive on fit, 0 eligible.
